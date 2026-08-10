@@ -445,19 +445,15 @@
 
   function renderTiles() {
     els.tiles.innerHTML = "";
-    state.participants.forEach((p) => {
+    const pending = state.participants.filter((p) => p.status === "pending");
+    pending.forEach((p) => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "tile" + (p.status === "finished" ? " is-finished" : "");
+      btn.className = "tile";
       btn.dataset.id = p.id;
-      btn.disabled = p.status !== "pending" || state.phase !== "running";
-      const meta =
-        p.status === "finished"
-          ? `<span class="tile-meta">${escapeHtml(formatElapsed(p.finishMs))}</span>`
-          : "";
+      btn.disabled = state.phase !== "running";
       btn.innerHTML = `
         <span class="tile-number">${escapeHtml(p.startNumber)}</span>
-        ${meta}
       `;
       btn.addEventListener("click", () => markFinished(p.id));
       els.tiles.appendChild(btn);
@@ -475,22 +471,22 @@
 
     const tile = els.tiles.querySelector(`[data-id="${CSS.escape(id)}"]`);
     if (tile) {
-      tile.classList.add("is-finished");
+      tile.classList.add("is-leaving");
       tile.disabled = true;
-      let meta = tile.querySelector(".tile-meta");
-      if (!meta) {
-        meta = document.createElement("span");
-        meta.className = "tile-meta";
-        tile.appendChild(meta);
-      }
-      meta.textContent = formatElapsed(participant.finishMs);
+      window.setTimeout(() => {
+        if (state.phase !== "running") return;
+        renderTiles();
+      }, 160);
+    } else {
+      renderTiles();
     }
 
-    updateStats();
     scheduleSave();
 
     if (counts().remaining === 0) {
       endRace({ confirm: false });
+    } else {
+      updateStats();
     }
   }
 

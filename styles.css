@@ -411,11 +411,17 @@ tbody tr:last-child td {
   gap: 2px;
   cursor: pointer;
   box-shadow: 0 4px 10px rgba(12, 40, 30, 0.14);
-  transition: transform 0.12s ease, background 0.15s ease, opacity 0.2s ease;
+  transition: transform 0.14s ease, background 0.15s ease, opacity 0.16s ease;
 }
 
 .tile:active:not(:disabled) {
   transform: scale(0.96);
+}
+
+.tile.is-leaving {
+  opacity: 0;
+  transform: scale(0.85);
+  pointer-events: none;
 }
 
 .tile-number {
