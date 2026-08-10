@@ -13,6 +13,7 @@
     rankingView: "overall",
     saveTimer: null,
     saving: false,
+    deleteRaceId: null,
   };
 
   const els = {
@@ -39,6 +40,11 @@
     btnNewRace: document.getElementById("btnNewRace"),
     btnExport: document.getElementById("btnExport"),
     btnCopyShare: document.getElementById("btnCopyShare"),
+    btnCopyRaceLink: document.getElementById("btnCopyRaceLink"),
+    btnCopySetupRaceLink: document.getElementById("btnCopySetupRaceLink"),
+    raceLinkInput: document.getElementById("raceLinkInput"),
+    setupRaceLinkInput: document.getElementById("setupRaceLinkInput"),
+    setupShareNote: document.getElementById("setupShareNote"),
     shareLinkInput: document.getElementById("shareLinkInput"),
     shareNote: document.getElementById("shareNote"),
     finishedTitle: document.getElementById("finishedTitle"),
@@ -48,6 +54,9 @@
     finishedSummary: document.getElementById("finishedSummary"),
     rankingContent: document.getElementById("rankingContent"),
     confirmModal: document.getElementById("confirmModal"),
+    deleteModal: document.getElementById("deleteModal"),
+    deleteModalText: document.getElementById("deleteModalText"),
+    btnConfirmDelete: document.getElementById("btnConfirmDelete"),
     views: {
       home: document.getElementById("view-home"),
       setup: document.getElementById("view-setup"),
@@ -66,27 +75,53 @@
     }
   }
 
+  function forgetRaceId(id) {
+    const ids = getOwnRaceIds().filter((x) => x !== id);
+    localStorage.setItem(OWN_RACES_KEY, JSON.stringify(ids));
+  }
+
   function rememberRaceId(id) {
     const ids = getOwnRaceIds().filter((x) => x !== id);
     ids.unshift(id);
     localStorage.setItem(OWN_RACES_KEY, JSON.stringify(ids.slice(0, 100)));
   }
 
-  function setHash(path) {
-    const next = path || "";
-    if (location.hash === next) return;
-    location.hash = next;
+  function goHomeUrl() {
+    if (location.pathname !== "/" || location.search || location.hash) {
+      history.pushState({}, "", "/");
+    }
   }
 
-  function parseHash() {
+  function goRaceUrl(id) {
+    const path = `/r/${id}`;
+    if (location.pathname !== path || location.hash) {
+      history.pushState({}, "", path);
+    }
+  }
+
+  function parseRoute() {
+    const pathMatch = location.pathname.match(/^\/r\/([a-z0-9]+)/i);
+    if (pathMatch) return { view: "race", id: pathMatch[1] };
     const raw = location.hash.replace(/^#/, "");
     const raceMatch = raw.match(/^\/race\/([a-z0-9]+)$/i);
     if (raceMatch) return { view: "race", id: raceMatch[1] };
     return { view: "home" };
   }
 
-  function shareUrl(id) {
+  function raceUrl(id) {
+    return `${location.origin}/r/${id}`;
+  }
+
+  function resultsUrl(id) {
     return `${location.origin}/e/${id}`;
+  }
+
+  function fillRaceLinks() {
+    const race = state.raceId ? raceUrl(state.raceId) : "";
+    const results = state.raceId ? resultsUrl(state.raceId) : "";
+    if (els.setupRaceLinkInput) els.setupRaceLinkInput.value = race;
+    if (els.raceLinkInput) els.raceLinkInput.value = race;
+    if (els.shareLinkInput) els.shareLinkInput.value = results;
   }
 
   function showHomeError(message) {
@@ -106,7 +141,7 @@
     });
 
     const labels = {
-      home: "Deine Rennen",
+      home: "Alle Rennen",
       setup: state.raceName || "Teilnehmer importieren",
       ready: state.raceName || "Bereit zum Start",
       running: state.raceName || "Rennen läuft",
@@ -114,6 +149,7 @@
     };
     els.subtitle.textContent = labels[phase];
     els.raceClock.hidden = phase !== "running" && phase !== "finished";
+    if (phase === "setup" || phase === "finished") fillRaceLinks();
   }
 
   function statusLabel(status) {
@@ -218,35 +254,24 @@
     showImportError("");
     showHomeError("");
     setPhase("home");
-    setHash("");
-
-    const ids = getOwnRaceIds();
-    els.raceListCount.textContent = String(ids.length);
-    if (!ids.length) {
-      els.raceList.innerHTML = `<p class="empty-hint">Noch keine Rennen auf diesem Gerät.</p>`;
-      return;
-    }
+    goHomeUrl();
 
     els.raceList.innerHTML = `<p class="empty-hint">Lade Rennen…</p>`;
     try {
-      const races = await api(`/api/races?ids=${encodeURIComponent(ids.join(","))}`);
-      const byId = new Map(races.map((r) => [r.id, r]));
-      const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
-      els.raceListCount.textContent = String(ordered.length);
+      const races = await api("/api/races");
+      els.raceListCount.textContent = String(races.length);
 
-      if (!ordered.length) {
-        els.raceList.innerHTML = `<p class="empty-hint">Keine gespeicherten Rennen gefunden.</p>`;
+      if (!races.length) {
+        els.raceList.innerHTML = `<p class="empty-hint">Noch keine Rennen vorhanden.</p>`;
         return;
       }
 
-      els.raceList.innerHTML = ordered
+      els.raceList.innerHTML = races
         .map((race) => {
           const meta = [
             statusLabel(race.status),
             `${race.participantCount} Teilnehmer`,
-            race.status === "finished"
-              ? `${race.finishedCount} im Ziel`
-              : null,
+            race.status === "finished" ? `${race.finishedCount} im Ziel` : null,
           ]
             .filter(Boolean)
             .join(" · ");
@@ -260,11 +285,17 @@
                 <button type="button" class="btn btn-primary" data-open-race="${escapeHtml(race.id)}">
                   Öffnen
                 </button>
+                <button type="button" class="btn btn-ghost" data-copy-race="${escapeHtml(race.id)}">
+                  Link
+                </button>
                 ${
                   race.status === "finished"
-                    ? `<button type="button" class="btn btn-ghost" data-copy-result="${escapeHtml(race.id)}">Link</button>`
+                    ? `<button type="button" class="btn btn-ghost" data-copy-result="${escapeHtml(race.id)}">Ergebnis</button>`
                     : ""
                 }
+                <button type="button" class="btn btn-danger-soft" data-delete-race="${escapeHtml(race.id)}" data-delete-name="${escapeHtml(race.name)}">
+                  Löschen
+                </button>
               </div>
             </article>`;
         })
@@ -276,7 +307,7 @@
 
   async function openRace(id) {
     const race = await api(`/api/races/${id}`);
-    setHash(`#/race/${id}`);
+    goRaceUrl(id);
     applyRace(race);
   }
 
@@ -294,7 +325,7 @@
         body: JSON.stringify({ name }),
       });
       els.raceNameInput.value = "";
-      setHash(`#/race/${race.id}`);
+      goRaceUrl(race.id);
       applyRace(race);
     } catch (error) {
       showHomeError(error.message);
@@ -525,7 +556,7 @@
 
     els.finishedTitle.textContent = state.raceName || "Rangliste";
     els.finishedSummary.textContent = `${finished} im Ziel, ${dns} nicht angetreten · Laufzeit ${totalTime}`;
-    els.shareLinkInput.value = state.raceId ? shareUrl(state.raceId) : "";
+    fillRaceLinks();
     renderRanking(els.rankingContent, state.participants, state.rankingView);
   }
 
@@ -550,14 +581,47 @@
       await navigator.clipboard.writeText(text);
       return true;
     } catch {
-      els.shareLinkInput.focus();
-      els.shareLinkInput.select();
-      return document.execCommand("copy");
+      const probe = document.createElement("textarea");
+      probe.value = text;
+      document.body.appendChild(probe);
+      probe.select();
+      const ok = document.execCommand("copy");
+      probe.remove();
+      return ok;
     }
   }
 
-  async function routeFromHash() {
-    const route = parseHash();
+  function openDeleteModal(id, name) {
+    state.deleteRaceId = id;
+    els.deleteModalText.textContent = `„${name}" und alle Ergebnisse werden unwiderruflich gelöscht.`;
+    els.deleteModal.hidden = false;
+  }
+
+  function closeDeleteModal() {
+    state.deleteRaceId = null;
+    els.deleteModal.hidden = true;
+  }
+
+  async function deleteRace(id) {
+    await api(`/api/races/${id}`, { method: "DELETE" });
+    forgetRaceId(id);
+    if (state.raceId === id) {
+      state.raceId = null;
+    }
+    closeDeleteModal();
+    await loadHome();
+  }
+
+  async function flashCopied(noteEl) {
+    if (!noteEl) return;
+    noteEl.hidden = false;
+    window.setTimeout(() => {
+      noteEl.hidden = true;
+    }, 1800);
+  }
+
+  async function routeFromLocation() {
+    const route = parseRoute();
     if (route.view === "race") {
       if (state.raceId === route.id && state.phase !== "home") return;
       try {
@@ -589,11 +653,26 @@
       }
       return;
     }
+
+    const copyRaceBtn = event.target.closest("[data-copy-race]");
+    if (copyRaceBtn) {
+      const url = raceUrl(copyRaceBtn.dataset.copyRace);
+      const ok = await copyText(url);
+      showHomeError(ok ? "Rennen-Link kopiert." : `Bitte manuell kopieren: ${url}`);
+      return;
+    }
+
     const copyBtn = event.target.closest("[data-copy-result]");
     if (copyBtn) {
-      const url = shareUrl(copyBtn.dataset.copyResult);
+      const url = resultsUrl(copyBtn.dataset.copyResult);
       const ok = await copyText(url);
       showHomeError(ok ? "Ergebnis-Link kopiert." : `Bitte manuell kopieren: ${url}`);
+      return;
+    }
+
+    const deleteBtn = event.target.closest("[data-delete-race]");
+    if (deleteBtn) {
+      openDeleteModal(deleteBtn.dataset.deleteRace, deleteBtn.dataset.deleteName || "Rennen");
     }
   });
 
@@ -671,12 +750,31 @@
 
   els.btnCopyShare.addEventListener("click", async () => {
     const ok = await copyText(els.shareLinkInput.value);
-    els.shareNote.hidden = !ok;
-    if (ok) {
-      setTimeout(() => {
-        els.shareNote.hidden = true;
-      }, 1800);
+    if (ok) flashCopied(els.shareNote);
+  });
+
+  els.btnCopyRaceLink?.addEventListener("click", async () => {
+    const ok = await copyText(els.raceLinkInput.value);
+    if (ok) flashCopied(els.shareNote);
+  });
+
+  els.btnCopySetupRaceLink?.addEventListener("click", async () => {
+    const ok = await copyText(els.setupRaceLinkInput.value);
+    if (ok) flashCopied(els.setupShareNote);
+  });
+
+  els.btnConfirmDelete.addEventListener("click", async () => {
+    if (!state.deleteRaceId) return;
+    try {
+      await deleteRace(state.deleteRaceId);
+    } catch (error) {
+      closeDeleteModal();
+      showHomeError(error.message);
     }
+  });
+
+  els.deleteModal.querySelectorAll("[data-close-delete]").forEach((node) => {
+    node.addEventListener("click", closeDeleteModal);
   });
 
   els.btnNewRace.addEventListener("click", async () => {
@@ -685,8 +783,12 @@
     els.raceNameInput.focus();
   });
 
+  window.addEventListener("popstate", () => {
+    routeFromLocation();
+  });
+
   window.addEventListener("hashchange", () => {
-    routeFromHash();
+    routeFromLocation();
   });
 
   window.addEventListener("beforeunload", () => {
@@ -699,5 +801,5 @@
     }).catch(() => {});
   });
 
-  routeFromHash();
+  routeFromLocation();
 })();

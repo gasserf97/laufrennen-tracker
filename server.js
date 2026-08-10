@@ -153,8 +153,22 @@ app.put("/api/races/:id", (req, res) => {
   res.json(next);
 });
 
+app.delete("/api/races/:id", (req, res) => {
+  const db = readDb();
+  if (!db.races[req.params.id]) {
+    return res.status(404).json({ error: "Rennen nicht gefunden." });
+  }
+  delete db.races[req.params.id];
+  writeDb(db);
+  res.json({ ok: true });
+});
+
 app.get("/e/:id", (_req, res) => {
   res.sendFile(path.join(ROOT, "ergebnis.html"));
+});
+
+app.get("/r/:id", (_req, res) => {
+  res.sendFile(path.join(ROOT, "index.html"));
 });
 
 app.use(express.static(ROOT, {

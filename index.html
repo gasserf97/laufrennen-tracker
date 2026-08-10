@@ -36,8 +36,9 @@
           <div class="panel">
             <h1>Rennen</h1>
             <p class="hint">
-              Neues Rennen anlegen oder ein gespeichertes öffnen. Ergebnisse
-              bleiben erhalten – du kannst parallel das nächste starten.
+              Neues Rennen anlegen oder ein bestehendes öffnen. Alle Rennen sind
+              für jeden mit dem Link erreichbar – du kannst parallel das nächste
+              starten.
             </p>
             <label class="field-label" for="raceNameInput">Name des Rennens</label>
             <input
@@ -56,11 +57,11 @@
 
           <div class="panel">
             <div class="panel-head">
-              <h2>Gespeicherte Rennen</h2>
+              <h2>Alle Rennen</h2>
               <span class="badge" id="raceListCount">0</span>
             </div>
             <div id="raceList" class="race-list">
-              <p class="empty-hint">Noch keine Rennen auf diesem Gerät.</p>
+              <p class="empty-hint">Noch keine Rennen vorhanden.</p>
             </div>
           </div>
         </section>
@@ -72,6 +73,14 @@
               ← Alle Rennen
             </button>
             <h1 id="setupTitle">Teilnehmer laden</h1>
+            <div class="share-box share-box-compact">
+              <p class="share-label">Rennen-Link (jeder kann damit einsteigen)</p>
+              <input id="setupRaceLinkInput" class="text-input" type="text" readonly />
+              <button type="button" class="btn btn-ghost" id="btnCopySetupRaceLink">
+                Link kopieren
+              </button>
+              <p class="share-note" id="setupShareNote" hidden>Link kopiert.</p>
+            </div>
             <p class="hint">
               Excel (.xlsx) oder CSV. Spalten: Startnummer, Name, Geschlecht
               (M/W), Kategorie.
@@ -171,10 +180,15 @@
             <p class="hint" id="finishedSummary"></p>
 
             <div class="share-box">
-              <p class="share-label">Ergebnis-Link für Läufer</p>
+              <p class="share-label">Rennen-Link (zum Mitmachen / Zeitnehmen)</p>
+              <input id="raceLinkInput" class="text-input" type="text" readonly />
+              <button type="button" class="btn btn-primary" id="btnCopyRaceLink">
+                Rennen-Link kopieren
+              </button>
+              <p class="share-label share-label-spaced">Ergebnis-Link für Läufer</p>
               <input id="shareLinkInput" class="text-input" type="text" readonly />
-              <button type="button" class="btn btn-primary" id="btnCopyShare">
-                Link kopieren
+              <button type="button" class="btn btn-ghost" id="btnCopyShare">
+                Ergebnis-Link kopieren
               </button>
               <p class="share-note" id="shareNote" hidden>Link kopiert.</p>
             </div>
@@ -236,6 +250,24 @@
           </button>
           <button type="button" class="btn btn-danger" id="btnConfirmEnd">
             Ja, beenden
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="deleteModal" hidden>
+      <div class="modal-backdrop" data-close-delete></div>
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <h2>Rennen löschen?</h2>
+        <p id="deleteModalText">
+          Das Rennen und alle Ergebnisse werden unwiderruflich gelöscht.
+        </p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close-delete>
+            Abbrechen
+          </button>
+          <button type="button" class="btn btn-danger" id="btnConfirmDelete">
+            Ja, löschen
           </button>
         </div>
       </div>

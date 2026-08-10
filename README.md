@@ -4,11 +4,13 @@ Mobiles Web-Tool zur Zeitstempelung bei Hobby-Laufrennen.
 
 ## Funktionen
 
-- Rennen erstellen und gespeichert wieder öffnen
+- Rennen erstellen; **alle Rennen** sind auf der Startseite für jeden sichtbar
+- Rennen-Link zum Mitmachen: `/r/<id>`
 - Teilnehmer per **CSV** oder **Excel** importieren
 - Zeitnahme über Startnummern-Kacheln
 - Ranglisten: Gesamt, Geschlecht, Kategorie + Excel-Export
-- Öffentlicher Ergebnis-Link für Läufer: `/e/<id>` (nur Ergebnisse)
+- Ergebnis-Link für Läufer: `/e/<id>` (nur Ergebnisse)
+- Alte Rennen löschen
 
 ## Lokal starten
 

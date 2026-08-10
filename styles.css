@@ -279,10 +279,25 @@ input {
   font-size: 0.85rem;
 }
 
+.share-label-spaced {
+  margin-top: 14px;
+}
+
+.share-box-compact {
+  margin-bottom: 14px;
+}
+
 .race-card-actions {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.race-card-actions .btn-danger-soft {
+  grid-column: 1 / -1;
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid #e2b4b4;
 }
 
 .race-card-actions .btn {
