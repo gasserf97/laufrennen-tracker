@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: laufrennen-tracker
+    runtime: static
+    repo: https://github.com/gasserf97/laufrennen-tracker
+    branch: main
+    buildCommand: echo "No build step"
+    staticPublishPath: .
+    autoDeployTrigger: commit

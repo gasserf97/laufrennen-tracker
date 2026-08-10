@@ -1,0 +1,13 @@
+{
+  "name": "laufrennen-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mobiles Web-Tool zur Zeitstempelung bei Hobby-Laufrennen",
+  "scripts": {
+    "start": "npx --yes serve -s . -l $PORT",
+    "serve": "npx --yes serve -s ."
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
