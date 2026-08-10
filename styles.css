@@ -295,24 +295,24 @@ tbody tr:last-child td {
 
 .tiles {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
   padding-bottom: 88px;
 }
 
 .tile {
   appearance: none;
   border: 0;
-  border-radius: 16px;
-  min-height: 88px;
-  padding: 12px 8px;
+  border-radius: 10px;
+  min-height: 52px;
+  padding: 6px 4px;
   background: var(--tile);
   color: var(--tile-ink);
   display: grid;
   place-content: center;
-  gap: 4px;
+  gap: 2px;
   cursor: pointer;
-  box-shadow: 0 8px 18px rgba(12, 40, 30, 0.18);
+  box-shadow: 0 4px 10px rgba(12, 40, 30, 0.14);
   transition: transform 0.12s ease, background 0.15s ease, opacity 0.2s ease;
 }
 
@@ -322,13 +322,13 @@ tbody tr:last-child td {
 
 .tile-number {
   font-family: var(--mono);
-  font-size: 1.55rem;
+  font-size: 1.05rem;
   font-weight: 700;
   line-height: 1;
 }
 
 .tile-meta {
-  font-size: 0.72rem;
+  font-size: 0.62rem;
   opacity: 0.75;
   max-width: 100%;
   overflow: hidden;
@@ -494,9 +494,15 @@ tbody tr:last-child td {
   }
 }
 
-@media (min-width: 560px) {
+@media (min-width: 480px) {
   .tiles {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 640px) {
+  .tiles {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   .modal {
@@ -504,8 +510,8 @@ tbody tr:last-child td {
   }
 }
 
-@media (max-width: 360px) {
+@media (max-width: 340px) {
   .tiles {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
