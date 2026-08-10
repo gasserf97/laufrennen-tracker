@@ -15,14 +15,14 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;700&family=IBM+Plex+Mono:wght@500;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <div class="app">
       <header class="topbar">
         <div>
           <p class="brand">Laufrennen Tracker</p>
-          <p class="subtitle" id="subtitle">Teilnehmer importieren</p>
+          <p class="subtitle" id="subtitle">Deine Rennen</p>
         </div>
         <div class="clock" id="raceClock" hidden>
           <span class="clock-label">Zeit</span>
@@ -31,10 +31,47 @@
       </header>
 
       <main>
-        <!-- Setup -->
-        <section id="view-setup" class="view">
+        <!-- Home -->
+        <section id="view-home" class="view">
           <div class="panel">
-            <h1>Teilnehmer laden</h1>
+            <h1>Rennen</h1>
+            <p class="hint">
+              Neues Rennen anlegen oder ein gespeichertes öffnen. Ergebnisse
+              bleiben erhalten – du kannst parallel das nächste starten.
+            </p>
+            <label class="field-label" for="raceNameInput">Name des Rennens</label>
+            <input
+              id="raceNameInput"
+              class="text-input"
+              type="text"
+              maxlength="80"
+              placeholder="z. B. Vereinslauf April"
+              autocomplete="off"
+            />
+            <p class="error" id="homeError" hidden></p>
+            <button type="button" class="btn btn-primary btn-xl" id="btnCreateRace">
+              Neues Rennen erstellen
+            </button>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Gespeicherte Rennen</h2>
+              <span class="badge" id="raceListCount">0</span>
+            </div>
+            <div id="raceList" class="race-list">
+              <p class="empty-hint">Noch keine Rennen auf diesem Gerät.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Setup -->
+        <section id="view-setup" class="view" hidden>
+          <div class="panel">
+            <button type="button" class="btn btn-ghost btn-inline" id="btnHomeFromSetup">
+              ← Alle Rennen
+            </button>
+            <h1 id="setupTitle">Teilnehmer laden</h1>
             <p class="hint">
               Excel (.xlsx) oder CSV. Spalten: Startnummer, Name, Geschlecht
               (M/W), Kategorie.
@@ -54,7 +91,7 @@
             <p class="error" id="importError" hidden></p>
 
             <div class="sample-row">
-              <a href="beispiel-teilnehmer.csv" download>Beispiel-CSV laden</a>
+              <a href="/beispiel-teilnehmer.csv" download>Beispiel-CSV laden</a>
             </div>
           </div>
 
@@ -85,6 +122,9 @@
         <!-- Ready -->
         <section id="view-ready" class="view" hidden>
           <div class="panel">
+            <button type="button" class="btn btn-ghost btn-inline" id="btnHomeFromReady">
+              ← Alle Rennen
+            </button>
             <h1>Bereit?</h1>
             <p class="hint">
               <span id="readyCount">0</span> Teilnehmer geladen. Beim Start
@@ -124,8 +164,20 @@
         <!-- Finished -->
         <section id="view-finished" class="view" hidden>
           <div class="panel">
-            <h1>Rangliste</h1>
+            <button type="button" class="btn btn-ghost btn-inline" id="btnHomeFromFinished">
+              ← Alle Rennen
+            </button>
+            <h1 id="finishedTitle">Rangliste</h1>
             <p class="hint" id="finishedSummary"></p>
+
+            <div class="share-box">
+              <p class="share-label">Ergebnis-Link für Läufer</p>
+              <input id="shareLinkInput" class="text-input" type="text" readonly />
+              <button type="button" class="btn btn-primary" id="btnCopyShare">
+                Link kopieren
+              </button>
+              <p class="share-note" id="shareNote" hidden>Link kopiert.</p>
+            </div>
 
             <div class="tabs" role="tablist" aria-label="Ranglisten">
               <button
@@ -170,7 +222,6 @@
       </main>
     </div>
 
-    <!-- Confirm dialog -->
     <div class="modal" id="confirmModal" hidden>
       <div class="modal-backdrop" data-close></div>
       <div class="modal-card" role="dialog" aria-modal="true">
@@ -191,6 +242,7 @@
     </div>
 
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-    <script src="app.js"></script>
+    <script src="/ranking.js"></script>
+    <script src="/app.js"></script>
   </body>
 </html>

@@ -3,11 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "description": "Mobiles Web-Tool zur Zeitstempelung bei Hobby-Laufrennen",
+  "main": "server.js",
   "scripts": {
-    "start": "npx --yes serve -s . -l $PORT",
-    "serve": "npx --yes serve -s ."
+    "start": "node server.js",
+    "serve": "node server.js"
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
   }
 }

@@ -1,9 +1,10 @@
 services:
   - type: web
     name: laufrennen-tracker
-    runtime: static
+    runtime: node
     repo: https://github.com/gasserf97/laufrennen-tracker
     branch: main
-    buildCommand: echo "No build step"
-    staticPublishPath: .
+    buildCommand: npm install
+    startCommand: npm start
     autoDeployTrigger: commit
+    plan: free

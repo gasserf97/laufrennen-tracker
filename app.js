@@ -1,22 +1,30 @@
 (() => {
+  const { escapeHtml, formatElapsed, renderRanking, exportExcel } = window.RaceRanking;
+  const OWN_RACES_KEY = "laufrennen.ownRaceIds";
+
   const state = {
+    raceId: null,
+    raceName: "",
     participants: [],
-    phase: "setup", // setup | ready | running | finished
+    phase: "home", // home | setup | ready | running | finished
     startedAt: null,
     endedAt: null,
     clockTimer: null,
-    rankingView: "overall", // overall | gender | category
-  };
-
-  const genderLabel = {
-    M: "Männer",
-    W: "Frauen",
+    rankingView: "overall",
+    saveTimer: null,
+    saving: false,
   };
 
   const els = {
     subtitle: document.getElementById("subtitle"),
     raceClock: document.getElementById("raceClock"),
     clockValue: document.getElementById("clockValue"),
+    raceNameInput: document.getElementById("raceNameInput"),
+    homeError: document.getElementById("homeError"),
+    btnCreateRace: document.getElementById("btnCreateRace"),
+    raceList: document.getElementById("raceList"),
+    raceListCount: document.getElementById("raceListCount"),
+    setupTitle: document.getElementById("setupTitle"),
     fileInput: document.getElementById("fileInput"),
     importError: document.getElementById("importError"),
     previewBlock: document.getElementById("previewBlock"),
@@ -30,6 +38,10 @@
     btnConfirmEnd: document.getElementById("btnConfirmEnd"),
     btnNewRace: document.getElementById("btnNewRace"),
     btnExport: document.getElementById("btnExport"),
+    btnCopyShare: document.getElementById("btnCopyShare"),
+    shareLinkInput: document.getElementById("shareLinkInput"),
+    shareNote: document.getElementById("shareNote"),
+    finishedTitle: document.getElementById("finishedTitle"),
     tiles: document.getElementById("tiles"),
     finishedCount: document.getElementById("finishedCount"),
     remainingCount: document.getElementById("remainingCount"),
@@ -37,12 +49,55 @@
     rankingContent: document.getElementById("rankingContent"),
     confirmModal: document.getElementById("confirmModal"),
     views: {
+      home: document.getElementById("view-home"),
       setup: document.getElementById("view-setup"),
       ready: document.getElementById("view-ready"),
       running: document.getElementById("view-running"),
       finished: document.getElementById("view-finished"),
     },
   };
+
+  function getOwnRaceIds() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(OWN_RACES_KEY) || "[]");
+      return Array.isArray(raw) ? raw.map(String) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function rememberRaceId(id) {
+    const ids = getOwnRaceIds().filter((x) => x !== id);
+    ids.unshift(id);
+    localStorage.setItem(OWN_RACES_KEY, JSON.stringify(ids.slice(0, 100)));
+  }
+
+  function setHash(path) {
+    const next = path || "";
+    if (location.hash === next) return;
+    location.hash = next;
+  }
+
+  function parseHash() {
+    const raw = location.hash.replace(/^#/, "");
+    const raceMatch = raw.match(/^\/race\/([a-z0-9]+)$/i);
+    if (raceMatch) return { view: "race", id: raceMatch[1] };
+    return { view: "home" };
+  }
+
+  function shareUrl(id) {
+    return `${location.origin}/e/${id}`;
+  }
+
+  function showHomeError(message) {
+    els.homeError.hidden = !message;
+    els.homeError.textContent = message || "";
+  }
+
+  function showImportError(message) {
+    els.importError.hidden = !message;
+    els.importError.textContent = message || "";
+  }
 
   function setPhase(phase) {
     state.phase = phase;
@@ -51,18 +106,201 @@
     });
 
     const labels = {
-      setup: "Teilnehmer importieren",
-      ready: "Bereit zum Start",
-      running: "Rennen läuft – tippe auf die Startnummer",
-      finished: "Ergebnis & Export",
+      home: "Deine Rennen",
+      setup: state.raceName || "Teilnehmer importieren",
+      ready: state.raceName || "Bereit zum Start",
+      running: state.raceName || "Rennen läuft",
+      finished: state.raceName || "Ergebnis & Export",
     };
     els.subtitle.textContent = labels[phase];
     els.raceClock.hidden = phase !== "running" && phase !== "finished";
   }
 
-  function showError(message) {
-    els.importError.hidden = !message;
-    els.importError.textContent = message || "";
+  function statusLabel(status) {
+    if (status === "finished") return "Beendet";
+    if (status === "running") return "Läuft";
+    if (status === "ready") return "Bereit";
+    return "Vorbereitung";
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(path, {
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      ...options,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || "Anfrage fehlgeschlagen.");
+    }
+    return data;
+  }
+
+  function payloadFromState() {
+    return {
+      name: state.raceName,
+      status: state.phase === "home" ? "setup" : state.phase,
+      participants: state.participants,
+      startedAt: state.startedAt,
+      endedAt: state.endedAt,
+    };
+  }
+
+  function applyRace(race) {
+    state.raceId = race.id;
+    state.raceName = race.name;
+    state.participants = Array.isArray(race.participants) ? race.participants : [];
+    state.startedAt = race.startedAt ?? null;
+    state.endedAt = race.endedAt ?? null;
+    rememberRaceId(race.id);
+
+    const phase =
+      race.status === "finished" ||
+      race.status === "running" ||
+      race.status === "ready" ||
+      race.status === "setup"
+        ? race.status
+        : "setup";
+
+    if (phase === "setup") {
+      renderPreview();
+      setPhase("setup");
+      if (els.setupTitle) els.setupTitle.textContent = race.name;
+    } else if (phase === "ready") {
+      els.readyCount.textContent = String(state.participants.length);
+      setPhase("ready");
+    } else if (phase === "running") {
+      setPhase("running");
+      renderTiles();
+      startClock();
+    } else {
+      state.rankingView = "overall";
+      syncRankingTabs();
+      renderFinished();
+      setPhase("finished");
+      stopClock();
+      updateClock();
+    }
+  }
+
+  function scheduleSave() {
+    if (!state.raceId || state.phase === "home") return;
+    clearTimeout(state.saveTimer);
+    state.saveTimer = setTimeout(() => {
+      saveRace().catch(() => {});
+    }, 350);
+  }
+
+  async function saveRace() {
+    if (!state.raceId || state.saving) return;
+    state.saving = true;
+    try {
+      await api(`/api/races/${state.raceId}`, {
+        method: "PUT",
+        body: JSON.stringify(payloadFromState()),
+      });
+    } finally {
+      state.saving = false;
+    }
+  }
+
+  async function loadHome() {
+    stopClock();
+    state.raceId = null;
+    state.raceName = "";
+    state.participants = [];
+    state.startedAt = null;
+    state.endedAt = null;
+    state.rankingView = "overall";
+    els.fileInput.value = "";
+    els.previewBlock.hidden = true;
+    els.previewBody.innerHTML = "";
+    els.rankingContent.innerHTML = "";
+    showImportError("");
+    showHomeError("");
+    setPhase("home");
+    setHash("");
+
+    const ids = getOwnRaceIds();
+    els.raceListCount.textContent = String(ids.length);
+    if (!ids.length) {
+      els.raceList.innerHTML = `<p class="empty-hint">Noch keine Rennen auf diesem Gerät.</p>`;
+      return;
+    }
+
+    els.raceList.innerHTML = `<p class="empty-hint">Lade Rennen…</p>`;
+    try {
+      const races = await api(`/api/races?ids=${encodeURIComponent(ids.join(","))}`);
+      const byId = new Map(races.map((r) => [r.id, r]));
+      const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+      els.raceListCount.textContent = String(ordered.length);
+
+      if (!ordered.length) {
+        els.raceList.innerHTML = `<p class="empty-hint">Keine gespeicherten Rennen gefunden.</p>`;
+        return;
+      }
+
+      els.raceList.innerHTML = ordered
+        .map((race) => {
+          const meta = [
+            statusLabel(race.status),
+            `${race.participantCount} Teilnehmer`,
+            race.status === "finished"
+              ? `${race.finishedCount} im Ziel`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          return `
+            <article class="race-card">
+              <div>
+                <h3>${escapeHtml(race.name)}</h3>
+                <p>${escapeHtml(meta)}</p>
+              </div>
+              <div class="race-card-actions">
+                <button type="button" class="btn btn-primary" data-open-race="${escapeHtml(race.id)}">
+                  Öffnen
+                </button>
+                ${
+                  race.status === "finished"
+                    ? `<button type="button" class="btn btn-ghost" data-copy-result="${escapeHtml(race.id)}">Link</button>`
+                    : ""
+                }
+              </div>
+            </article>`;
+        })
+        .join("");
+    } catch (error) {
+      els.raceList.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
+    }
+  }
+
+  async function openRace(id) {
+    const race = await api(`/api/races/${id}`);
+    setHash(`#/race/${id}`);
+    applyRace(race);
+  }
+
+  async function createRace() {
+    const name = els.raceNameInput.value.trim();
+    if (!name) {
+      showHomeError("Bitte einen Namen für das Rennen eingeben.");
+      return;
+    }
+    showHomeError("");
+    els.btnCreateRace.disabled = true;
+    try {
+      const race = await api("/api/races", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+      els.raceNameInput.value = "";
+      setHash(`#/race/${race.id}`);
+      applyRace(race);
+    } catch (error) {
+      showHomeError(error.message);
+    } finally {
+      els.btnCreateRace.disabled = false;
+    }
   }
 
   function normalizeGender(value) {
@@ -94,14 +332,10 @@
   }
 
   function parseRows(rows) {
-    if (!rows.length) {
-      throw new Error("Die Datei enthält keine Daten.");
-    }
+    if (!rows.length) throw new Error("Die Datei enthält keine Daten.");
 
     let dataRows = rows;
-    if (looksLikeHeader(rows[0])) {
-      dataRows = rows.slice(1);
-    }
+    if (looksLikeHeader(rows[0])) dataRows = rows.slice(1);
 
     const participants = dataRows
       .map((row, index) => {
@@ -109,40 +343,31 @@
         const name = String(cell(row, 1) ?? "").trim();
         const gender = normalizeGender(cell(row, 2));
         const category = String(cell(row, 3) ?? "").trim();
-
         if (!startNumber && !name) return null;
         if (!startNumber || !name) {
-          throw new Error(
-            `Zeile ${index + 1}: Startnummer und Name sind Pflichtfelder.`
-          );
+          throw new Error(`Zeile ${index + 1}: Startnummer und Name sind Pflichtfelder.`);
         }
-
         return {
           id: `${startNumber}-${index}`,
           startNumber,
           name,
           gender,
           category: category || "—",
-          status: "pending", // pending | finished | dns
+          status: "pending",
           finishMs: null,
         };
       })
       .filter(Boolean);
 
-    if (!participants.length) {
-      throw new Error("Keine gültigen Teilnehmer gefunden.");
-    }
+    if (!participants.length) throw new Error("Keine gültigen Teilnehmer gefunden.");
 
     const numbers = participants.map((p) => p.startNumber);
-    const unique = new Set(numbers);
-    if (unique.size !== numbers.length) {
+    if (new Set(numbers).size !== numbers.length) {
       throw new Error("Doppelte Startnummern in der Datei.");
     }
 
     return participants.sort((a, b) =>
-      String(a.startNumber).localeCompare(String(b.startNumber), "de", {
-        numeric: true,
-      })
+      String(a.startNumber).localeCompare(String(b.startNumber), "de", { numeric: true })
     );
   }
 
@@ -155,22 +380,22 @@
   async function parseFile(file) {
     const name = file.name.toLowerCase();
     if (name.endsWith(".csv")) {
-      const text = await file.text();
-      return parseRows(parseCsvText(text));
+      return parseRows(parseCsvText(await file.text()));
     }
-
     if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
-      const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "array" });
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-      return parseRows(rows);
+      return parseRows(XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" }));
     }
-
     throw new Error("Bitte eine CSV- oder Excel-Datei wählen.");
   }
 
   function renderPreview() {
+    if (!state.participants.length) {
+      els.previewBlock.hidden = true;
+      els.previewBody.innerHTML = "";
+      return;
+    }
     els.participantCount.textContent = String(state.participants.length);
     els.previewBody.innerHTML = state.participants
       .map(
@@ -184,30 +409,6 @@
       )
       .join("");
     els.previewBlock.hidden = false;
-  }
-
-  function escapeHtml(value) {
-    return String(value)
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;");
-  }
-
-  function formatElapsed(ms) {
-    if (ms == null || ms < 0) return "—";
-    const totalTenths = Math.floor(ms / 100);
-    const tenths = totalTenths % 10;
-    const totalSeconds = Math.floor(totalTenths / 10);
-    const seconds = totalSeconds % 60;
-    const minutes = Math.floor(totalSeconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-
-    if (hours > 0) {
-      return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${tenths}`;
-    }
-    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${tenths}`;
   }
 
   function updateClock() {
@@ -230,9 +431,10 @@
   }
 
   function counts() {
-    const finished = state.participants.filter((p) => p.status === "finished").length;
-    const remaining = state.participants.filter((p) => p.status === "pending").length;
-    return { finished, remaining };
+    return {
+      finished: state.participants.filter((p) => p.status === "finished").length,
+      remaining: state.participants.filter((p) => p.status === "pending").length,
+    };
   }
 
   function updateStats() {
@@ -249,17 +451,14 @@
       btn.className = "tile" + (p.status === "finished" ? " is-finished" : "");
       btn.dataset.id = p.id;
       btn.disabled = p.status !== "pending" || state.phase !== "running";
-
       const meta =
         p.status === "finished"
           ? `<span class="tile-meta">${escapeHtml(formatElapsed(p.finishMs))}</span>`
           : "";
-
       btn.innerHTML = `
         <span class="tile-number">${escapeHtml(p.startNumber)}</span>
         ${meta}
       `;
-
       btn.addEventListener("click", () => markFinished(p.id));
       els.tiles.appendChild(btn);
     });
@@ -288,13 +487,14 @@
     }
 
     updateStats();
+    scheduleSave();
 
     if (counts().remaining === 0) {
       endRace({ confirm: false });
     }
   }
 
-  function endRace({ confirm }) {
+  async function endRace({ confirm }) {
     if (state.phase !== "running") return;
     if (confirm) {
       openModal();
@@ -304,7 +504,6 @@
     state.endedAt = Date.now();
     stopClock();
     updateClock();
-
     state.participants.forEach((p) => {
       if (p.status === "pending") {
         p.status = "dns";
@@ -315,101 +514,12 @@
     closeModal();
     state.rankingView = "overall";
     syncRankingTabs();
-    renderResults();
+    renderFinished();
     setPhase("finished");
+    await saveRace();
   }
 
-  function compareByTime(a, b) {
-    if (a.status === "finished" && b.status !== "finished") return -1;
-    if (b.status === "finished" && a.status !== "finished") return 1;
-    if (a.status === "finished" && b.status === "finished") {
-      return a.finishMs - b.finishMs;
-    }
-    return String(a.startNumber).localeCompare(String(b.startNumber), "de", {
-      numeric: true,
-    });
-  }
-
-  function rankList(list) {
-    let place = 0;
-    let finishedCount = 0;
-    return [...list].sort(compareByTime).map((p) => {
-      if (p.status === "finished") {
-        finishedCount += 1;
-        place = finishedCount;
-        return { ...p, place };
-      }
-      return { ...p, place: null };
-    });
-  }
-
-  function statusLabel(p) {
-    return p.status === "finished" ? "Im Ziel" : "Nicht angetreten";
-  }
-
-  function genderTitle(code) {
-    return genderLabel[code] || `Geschlecht ${code}`;
-  }
-
-  function buildOverallRows() {
-    return rankList(state.participants);
-  }
-
-  function buildGroupedRows(keyFn, titleFn) {
-    const groups = new Map();
-    state.participants.forEach((p) => {
-      const key = keyFn(p);
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(p);
-    });
-
-    return [...groups.entries()]
-      .sort(([a], [b]) => String(a).localeCompare(String(b), "de", { numeric: true }))
-      .map(([key, list]) => ({
-        title: titleFn(key),
-        rows: rankList(list),
-      }));
-  }
-
-  function tableHtml(rows, { showGender = true, showCategory = true } = {}) {
-    const head = `
-      <thead>
-        <tr>
-          <th>Platz</th>
-          <th>#</th>
-          <th>Name</th>
-          ${showGender ? "<th>G</th>" : ""}
-          ${showCategory ? "<th>Kat.</th>" : ""}
-          <th>Status</th>
-          <th>Zeit</th>
-        </tr>
-      </thead>`;
-
-    const body = rows
-      .map((p) => {
-        const place = p.place == null ? "—" : String(p.place);
-        const status =
-          p.status === "finished"
-            ? `<span class="status-ok">Im Ziel</span>`
-            : `<span class="status-dns">Nicht angetreten</span>`;
-        const time = p.status === "finished" ? formatElapsed(p.finishMs) : "—";
-        return `
-          <tr>
-            <td class="rank-cell">${place}</td>
-            <td>${escapeHtml(p.startNumber)}</td>
-            <td>${escapeHtml(p.name)}</td>
-            ${showGender ? `<td>${escapeHtml(p.gender)}</td>` : ""}
-            ${showCategory ? `<td>${escapeHtml(p.category)}</td>` : ""}
-            <td>${status}</td>
-            <td>${time}</td>
-          </tr>`;
-      })
-      .join("");
-
-    return `<div class="table-wrap"><table>${head}<tbody>${body}</tbody></table></div>`;
-  }
-
-  function renderResults() {
+  function renderFinished() {
     const finished = state.participants.filter((p) => p.status === "finished").length;
     const dns = state.participants.filter((p) => p.status === "dns").length;
     const totalTime =
@@ -417,114 +527,18 @@
         ? formatElapsed(state.endedAt - state.startedAt)
         : "—";
 
+    els.finishedTitle.textContent = state.raceName || "Rangliste";
     els.finishedSummary.textContent = `${finished} im Ziel, ${dns} nicht angetreten · Laufzeit ${totalTime}`;
-
-    if (state.rankingView === "overall") {
-      els.rankingContent.innerHTML = tableHtml(buildOverallRows());
-      return;
-    }
-
-    if (state.rankingView === "gender") {
-      const groups = buildGroupedRows((p) => p.gender, genderTitle);
-      els.rankingContent.innerHTML = groups
-        .map(
-          (group) => `
-          <div class="ranking-group">
-            <h3>${escapeHtml(group.title)}</h3>
-            ${tableHtml(group.rows, { showGender: false, showCategory: true })}
-          </div>`
-        )
-        .join("");
-      return;
-    }
-
-    const groups = buildGroupedRows(
-      (p) => p.category,
-      (key) => key
-    );
-    els.rankingContent.innerHTML = groups
-      .map(
-        (group) => `
-        <div class="ranking-group">
-          <h3>${escapeHtml(group.title)}</h3>
-          ${tableHtml(group.rows, { showGender: true, showCategory: false })}
-        </div>`
-      )
-      .join("");
+    els.shareLinkInput.value = state.raceId ? shareUrl(state.raceId) : "";
+    renderRanking(els.rankingContent, state.participants, state.rankingView);
   }
 
   function syncRankingTabs() {
-    document.querySelectorAll(".tab[data-ranking]").forEach((tab) => {
+    document.querySelectorAll("#view-finished .tab[data-ranking]").forEach((tab) => {
       const active = tab.dataset.ranking === state.rankingView;
       tab.classList.toggle("is-active", active);
       tab.setAttribute("aria-selected", active ? "true" : "false");
     });
-  }
-
-  function sheetRowsFromRanked(list) {
-    return list.map((p) => ({
-      Platz: p.place == null ? "" : p.place,
-      Startnummer: p.startNumber,
-      Name: p.name,
-      Geschlecht: p.gender,
-      Kategorie: p.category,
-      Status: statusLabel(p),
-      Zeit: p.status === "finished" ? formatElapsed(p.finishMs) : "",
-    }));
-  }
-
-  function safeSheetName(name) {
-    return String(name)
-      .replace(/[\\/?*:[\]]/g, "-")
-      .slice(0, 31) || "Blatt";
-  }
-
-  function uniqueSheetName(used, base) {
-    let name = safeSheetName(base);
-    if (!used.has(name)) {
-      used.add(name);
-      return name;
-    }
-    let i = 2;
-    while (used.has(safeSheetName(`${base} ${i}`))) i += 1;
-    name = safeSheetName(`${base} ${i}`);
-    used.add(name);
-    return name;
-  }
-
-  function exportExcel() {
-    const workbook = XLSX.utils.book_new();
-    const usedNames = new Set();
-
-    const overall = sheetRowsFromRanked(buildOverallRows());
-    XLSX.utils.book_append_sheet(
-      workbook,
-      XLSX.utils.json_to_sheet(overall),
-      uniqueSheetName(usedNames, "Gesamt")
-    );
-
-    buildGroupedRows((p) => p.gender, genderTitle).forEach((group) => {
-      XLSX.utils.book_append_sheet(
-        workbook,
-        XLSX.utils.json_to_sheet(sheetRowsFromRanked(group.rows)),
-        uniqueSheetName(usedNames, group.title)
-      );
-    });
-
-    buildGroupedRows(
-      (p) => p.category,
-      (key) => `Kat ${key}`
-    ).forEach((group) => {
-      XLSX.utils.book_append_sheet(
-        workbook,
-        XLSX.utils.json_to_sheet(sheetRowsFromRanked(group.rows)),
-        uniqueSheetName(usedNames, group.title)
-      );
-    });
-
-    const stamp = new Date();
-    const fileName = `rangliste-${stamp.getFullYear()}${String(stamp.getMonth() + 1).padStart(2, "0")}${String(stamp.getDate()).padStart(2, "0")}-${String(stamp.getHours()).padStart(2, "0")}${String(stamp.getMinutes()).padStart(2, "0")}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
   }
 
   function openModal() {
@@ -535,32 +549,82 @@
     els.confirmModal.hidden = true;
   }
 
-  function resetToSetup() {
-    stopClock();
-    state.participants = [];
-    state.startedAt = null;
-    state.endedAt = null;
-    state.rankingView = "overall";
-    els.fileInput.value = "";
-    els.previewBlock.hidden = true;
-    els.previewBody.innerHTML = "";
-    els.rankingContent.innerHTML = "";
-    showError("");
-    setPhase("setup");
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      els.shareLinkInput.focus();
+      els.shareLinkInput.select();
+      return document.execCommand("copy");
+    }
   }
+
+  async function routeFromHash() {
+    const route = parseHash();
+    if (route.view === "race") {
+      if (state.raceId === route.id && state.phase !== "home") return;
+      try {
+        await openRace(route.id);
+      } catch (error) {
+        showHomeError(error.message);
+        await loadHome();
+      }
+      return;
+    }
+    await loadHome();
+  }
+
+  els.btnCreateRace.addEventListener("click", () => {
+    createRace();
+  });
+
+  els.raceNameInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") createRace();
+  });
+
+  els.raceList.addEventListener("click", async (event) => {
+    const openBtn = event.target.closest("[data-open-race]");
+    if (openBtn) {
+      try {
+        await openRace(openBtn.dataset.openRace);
+      } catch (error) {
+        showHomeError(error.message);
+      }
+      return;
+    }
+    const copyBtn = event.target.closest("[data-copy-result]");
+    if (copyBtn) {
+      const url = shareUrl(copyBtn.dataset.copyResult);
+      const ok = await copyText(url);
+      showHomeError(ok ? "Ergebnis-Link kopiert." : `Bitte manuell kopieren: ${url}`);
+    }
+  });
+
+  [
+    "btnHomeFromSetup",
+    "btnHomeFromReady",
+    "btnHomeFromFinished",
+  ].forEach((id) => {
+    document.getElementById(id)?.addEventListener("click", async () => {
+      await saveRace();
+      await loadHome();
+    });
+  });
 
   els.fileInput.addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    showError("");
+    showImportError("");
     try {
       state.participants = await parseFile(file);
       renderPreview();
+      scheduleSave();
     } catch (error) {
       state.participants = [];
       els.previewBlock.hidden = true;
-      showError(error.message || "Import fehlgeschlagen.");
+      showImportError(error.message || "Import fehlgeschlagen.");
+      scheduleSave();
     }
   });
 
@@ -568,10 +632,14 @@
     if (!state.participants.length) return;
     els.readyCount.textContent = String(state.participants.length);
     setPhase("ready");
+    scheduleSave();
   });
 
   els.btnBackToImport.addEventListener("click", () => {
-    resetToSetup();
+    if (els.setupTitle) els.setupTitle.textContent = state.raceName || "Teilnehmer laden";
+    renderPreview();
+    setPhase("setup");
+    scheduleSave();
   });
 
   els.btnStart.addEventListener("click", () => {
@@ -584,35 +652,56 @@
     setPhase("running");
     renderTiles();
     startClock();
+    scheduleSave();
   });
 
-  els.btnEndRace.addEventListener("click", () => {
-    endRace({ confirm: true });
-  });
-
-  els.btnConfirmEnd.addEventListener("click", () => {
-    endRace({ confirm: false });
-  });
-
+  els.btnEndRace.addEventListener("click", () => endRace({ confirm: true }));
+  els.btnConfirmEnd.addEventListener("click", () => endRace({ confirm: false }));
   els.confirmModal.querySelectorAll("[data-close]").forEach((node) => {
     node.addEventListener("click", closeModal);
   });
 
-  document.querySelectorAll(".tab[data-ranking]").forEach((tab) => {
+  document.querySelectorAll("#view-finished .tab[data-ranking]").forEach((tab) => {
     tab.addEventListener("click", () => {
       state.rankingView = tab.dataset.ranking;
       syncRankingTabs();
-      renderResults();
+      renderFinished();
     });
   });
 
   els.btnExport.addEventListener("click", () => {
-    exportExcel();
+    exportExcel(state.participants, state.raceName);
   });
 
-  els.btnNewRace.addEventListener("click", () => {
-    resetToSetup();
+  els.btnCopyShare.addEventListener("click", async () => {
+    const ok = await copyText(els.shareLinkInput.value);
+    els.shareNote.hidden = !ok;
+    if (ok) {
+      setTimeout(() => {
+        els.shareNote.hidden = true;
+      }, 1800);
+    }
   });
 
-  setPhase("setup");
+  els.btnNewRace.addEventListener("click", async () => {
+    await saveRace();
+    await loadHome();
+    els.raceNameInput.focus();
+  });
+
+  window.addEventListener("hashchange", () => {
+    routeFromHash();
+  });
+
+  window.addEventListener("beforeunload", () => {
+    if (!state.raceId || state.phase === "home") return;
+    fetch(`/api/races/${state.raceId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payloadFromState()),
+      keepalive: true,
+    }).catch(() => {});
+  });
+
+  routeFromHash();
 })();
