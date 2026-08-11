@@ -246,7 +246,7 @@
     state.participants = [];
     state.startedAt = null;
     state.endedAt = null;
-    state.rankingView = "overall";
+    state.rankingView = "category";
     els.fileInput.value = "";
     els.previewBlock.hidden = true;
     els.previewBody.innerHTML = "";
@@ -539,7 +539,7 @@
     });
 
     closeModal();
-    state.rankingView = "overall";
+    state.rankingView = "category";
     syncRankingTabs();
     renderFinished();
     setPhase("finished");
