@@ -603,19 +603,9 @@ tbody tr:last-child td {
   border-bottom: 1px solid var(--line);
 }
 
-.result-section-label {
-  display: block;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  margin-bottom: 4px;
-}
-
 .result-section-title {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.35rem;
   line-height: 1.2;
 }
 

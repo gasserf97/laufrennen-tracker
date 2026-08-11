@@ -119,13 +119,12 @@ window.RaceRanking = (() => {
     return `<div class="${wrapClass}"><table>${head}<tbody>${body}</tbody></table></div>`;
   }
 
-  function sectionHtml(label, title, rows, tableOptions = {}) {
+  function sectionHtml(title, rows, tableOptions = {}) {
     const count = rows.length;
     const finished = rows.filter((p) => p.status === "finished").length;
     return `
       <section class="result-section">
         <header class="result-section-head">
-          <span class="result-section-label">${escapeHtml(label)}</span>
           <h3 class="result-section-title">${escapeHtml(title)}</h3>
           <p class="result-section-meta">${finished} im Ziel · ${count} Teilnehmer</p>
         </header>
@@ -135,13 +134,13 @@ window.RaceRanking = (() => {
       </section>`;
   }
 
-  function renderGroupedSections(container, groups, label) {
+  function renderGroupedSections(container, groups) {
     if (!groups.length) {
       container.innerHTML = `<p class="empty-hint">Keine Teilnehmer in dieser Ansicht.</p>`;
       return;
     }
     container.innerHTML = groups
-      .map((group) => sectionHtml(label, group.title, group.rows, group.tableOptions || {}))
+      .map((group) => sectionHtml(group.title, group.rows, group.tableOptions || {}))
       .join("");
   }
 
@@ -161,19 +160,19 @@ window.RaceRanking = (() => {
           tableOptions: { showGender: false },
         })
       );
-      renderGroupedSections(container, groups, "Geschlecht");
+      renderGroupedSections(container, groups);
       return;
     }
 
     const groups = buildGroupedRows(
       participants,
-      (p) => p.category || "—",
+      (p) => String(p.category || "—").trim() || "—",
       (key) => key
     ).map((group) => ({
       ...group,
       tableOptions: { showGender: true },
     }));
-    renderGroupedSections(container, groups, "Kategorie");
+    renderGroupedSections(container, groups);
   }
 
   function sheetRowsFromRanked(list) {

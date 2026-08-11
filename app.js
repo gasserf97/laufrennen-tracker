@@ -345,20 +345,89 @@
     return raw.slice(0, 1) || "?";
   }
 
+  function normalizeHeader(value) {
+    return String(value ?? "")
+      .toLowerCase()
+      .trim()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  }
+
+  function isIndexHeader(value) {
+    const h = normalizeHeader(value);
+    return (
+      h === "nr" ||
+      h === "#" ||
+      h === "pos" ||
+      h === "position" ||
+      h === "index" ||
+      h.includes("lfd") ||
+      h.includes("laufende") ||
+      h === "id"
+    );
+  }
+
+  function buildColumnMap(headerRow) {
+    const headers = headerRow.map(normalizeHeader);
+    const findIndex = (patterns, fallback) => {
+      const idx = headers.findIndex((h) => patterns.some((p) => h.includes(p)));
+      return idx >= 0 ? idx : fallback;
+    };
+
+    let startOffset = 0;
+    if (headers.length > 4 && isIndexHeader(headerRow[0])) {
+      startOffset = 1;
+    }
+
+    const startNumber = findIndex(
+      ["startnummer", "startnr", "start-nr", "bib", "start nr"],
+      startOffset
+    );
+    let name = findIndex(
+      ["name", "nachname", "laeufer", "teilnehmer", "runner"],
+      startOffset + 1
+    );
+    let gender = findIndex(["geschlecht", "gender", "sex", "m/w", "mw"], startOffset + 2);
+    let category = findIndex(
+      ["kategorie", "category", "klasse", "altersklasse", "ak", "class"],
+      startOffset + 3
+    );
+
+    const used = new Set([startNumber, name, gender, category]);
+    if (category === startOffset + 3 && headers.length > startOffset + 4) {
+      for (let i = headers.length - 1; i >= startOffset; i -= 1) {
+        if (!used.has(i) && headers[i]) {
+          category = i;
+          break;
+        }
+      }
+    }
+
+    return { startNumber, name, gender, category };
+  }
+
   function cell(row, index) {
     if (Array.isArray(row)) return row[index];
     const keys = Object.keys(row);
     return row[keys[index]];
   }
 
+  function valueAt(row, index) {
+    if (index == null || index < 0) return "";
+    return cell(row, index);
+  }
+
   function looksLikeHeader(row) {
-    const first = String(cell(row, 0) ?? "").toLowerCase();
+    const first = normalizeHeader(cell(row, 0));
     return (
       first.includes("start") ||
       first.includes("nummer") ||
       first === "nr" ||
       first === "#" ||
-      first === "startnummer"
+      first.includes("name") ||
+      first.includes("kategorie") ||
+      first.includes("geschlecht") ||
+      isIndexHeader(cell(row, 0))
     );
   }
 
@@ -366,14 +435,25 @@
     if (!rows.length) throw new Error("Die Datei enthält keine Daten.");
 
     let dataRows = rows;
-    if (looksLikeHeader(rows[0])) dataRows = rows.slice(1);
+    let columns = { startNumber: 0, name: 1, gender: 2, category: 3 };
+
+    if (looksLikeHeader(rows[0])) {
+      columns = buildColumnMap(rows[0]);
+      dataRows = rows.slice(1);
+    } else if (rows[0]?.length > 4) {
+      const first = String(cell(rows[0], 0) ?? "").trim();
+      const second = String(cell(rows[0], 1) ?? "").trim();
+      if (/^\d+$/.test(first) && /^\d+$/.test(second) && Number(first) <= Number(second)) {
+        columns = { startNumber: 1, name: 2, gender: 3, category: 4 };
+      }
+    }
 
     const participants = dataRows
       .map((row, index) => {
-        const startNumber = String(cell(row, 0) ?? "").trim();
-        const name = String(cell(row, 1) ?? "").trim();
-        const gender = normalizeGender(cell(row, 2));
-        const category = String(cell(row, 3) ?? "").trim();
+        const startNumber = String(valueAt(row, columns.startNumber) ?? "").trim();
+        const name = String(valueAt(row, columns.name) ?? "").trim();
+        const gender = normalizeGender(valueAt(row, columns.gender));
+        const category = String(valueAt(row, columns.category) ?? "").trim();
         if (!startNumber && !name) return null;
         if (!startNumber || !name) {
           throw new Error(`Zeile ${index + 1}: Startnummer und Name sind Pflichtfelder.`);
