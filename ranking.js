@@ -80,7 +80,7 @@ window.RaceRanking = (() => {
       }));
   }
 
-  function tableHtml(rows, { showGender = true, showCategory = true } = {}) {
+  function tableHtml(rows, { showGender = true, showCategory = false, compact = false } = {}) {
     const head = `
       <thead>
         <tr>
@@ -115,39 +115,65 @@ window.RaceRanking = (() => {
       })
       .join("");
 
-    return `<div class="table-wrap"><table>${head}<tbody>${body}</tbody></table></div>`;
+    const wrapClass = compact ? "table-wrap table-wrap-compact" : "table-wrap";
+    return `<div class="${wrapClass}"><table>${head}<tbody>${body}</tbody></table></div>`;
+  }
+
+  function sectionHtml(label, title, rows, tableOptions = {}) {
+    const count = rows.length;
+    const finished = rows.filter((p) => p.status === "finished").length;
+    return `
+      <section class="result-section">
+        <header class="result-section-head">
+          <span class="result-section-label">${escapeHtml(label)}</span>
+          <h3 class="result-section-title">${escapeHtml(title)}</h3>
+          <p class="result-section-meta">${finished} im Ziel · ${count} Teilnehmer</p>
+        </header>
+        <div class="result-section-body">
+          ${tableHtml(rows, { showCategory: false, compact: true, ...tableOptions })}
+        </div>
+      </section>`;
+  }
+
+  function renderGroupedSections(container, groups, label) {
+    if (!groups.length) {
+      container.innerHTML = `<p class="empty-hint">Keine Teilnehmer in dieser Ansicht.</p>`;
+      return;
+    }
+    container.innerHTML = groups
+      .map((group) => sectionHtml(label, group.title, group.rows, group.tableOptions || {}))
+      .join("");
   }
 
   function renderRanking(container, participants, rankingView) {
     if (rankingView === "overall") {
-      container.innerHTML = tableHtml(buildOverallRows(participants));
+      container.innerHTML = tableHtml(buildOverallRows(participants), {
+        showGender: true,
+        showCategory: true,
+      });
       return;
     }
 
     if (rankingView === "gender") {
-      const groups = buildGroupedRows(participants, (p) => p.gender, genderTitle);
-      container.innerHTML = groups
-        .map(
-          (group) => `
-          <div class="ranking-group">
-            <h3>${escapeHtml(group.title)}</h3>
-            ${tableHtml(group.rows, { showGender: false, showCategory: true })}
-          </div>`
-        )
-        .join("");
+      const groups = buildGroupedRows(participants, (p) => p.gender, genderTitle).map(
+        (group) => ({
+          ...group,
+          tableOptions: { showGender: false },
+        })
+      );
+      renderGroupedSections(container, groups, "Geschlecht");
       return;
     }
 
-    const groups = buildGroupedRows(participants, (p) => p.category, (key) => key);
-    container.innerHTML = groups
-      .map(
-        (group) => `
-        <div class="ranking-group">
-          <h3>${escapeHtml(group.title)}</h3>
-          ${tableHtml(group.rows, { showGender: true, showCategory: false })}
-        </div>`
-      )
-      .join("");
+    const groups = buildGroupedRows(
+      participants,
+      (p) => p.category || "—",
+      (key) => key
+    ).map((group) => ({
+      ...group,
+      tableOptions: { showGender: true },
+    }));
+    renderGroupedSections(container, groups, "Kategorie");
   }
 
   function sheetRowsFromRanked(list) {

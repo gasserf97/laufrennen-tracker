@@ -197,9 +197,18 @@
               <button
                 type="button"
                 class="tab is-active"
-                data-ranking="overall"
+                data-ranking="category"
                 role="tab"
                 aria-selected="true"
+              >
+                Kategorie
+              </button>
+              <button
+                type="button"
+                class="tab"
+                data-ranking="overall"
+                role="tab"
+                aria-selected="false"
               >
                 Gesamt
               </button>
@@ -211,15 +220,6 @@
                 aria-selected="false"
               >
                 Geschlecht
-              </button>
-              <button
-                type="button"
-                class="tab"
-                data-ranking="category"
-                role="tab"
-                aria-selected="false"
-              >
-                Kategorie
               </button>
             </div>
 
@@ -234,6 +234,10 @@
           </div>
         </section>
       </main>
+
+      <footer class="site-footer">
+        <p>Powered by Fabian Gasser</p>
+      </footer>
     </div>
 
     <div class="modal" id="confirmModal" hidden>

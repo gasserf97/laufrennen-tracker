@@ -3,7 +3,7 @@
 
   const state = {
     race: null,
-    rankingView: "overall",
+    rankingView: "category",
   };
 
   const els = {

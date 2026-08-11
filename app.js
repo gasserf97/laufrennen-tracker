@@ -10,7 +10,7 @@
     startedAt: null,
     endedAt: null,
     clockTimer: null,
-    rankingView: "overall",
+    rankingView: "category",
     saveTimer: null,
     saving: false,
     deleteRaceId: null,
@@ -209,7 +209,7 @@
       renderTiles();
       startClock();
     } else {
-      state.rankingView = "overall";
+      state.rankingView = "category";
       syncRankingTabs();
       renderFinished();
       setPhase("finished");
