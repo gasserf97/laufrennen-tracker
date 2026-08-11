@@ -21,6 +21,8 @@ npm start
 
 Öffne danach http://localhost:5173
 
-## Deploy
+## Speicherung
 
-Render Web Service (`render.yaml`): `npm install` + `npm start`
+Lokal: Datei `data/races.json`.
+
+Auf Render: persistenter Speicher über GitHub Gist (`RACES_GIST_ID` + `GITHUB_TOKEN`), damit Rennen Redeploys überleben.
