@@ -57,6 +57,20 @@
 
           <div class="panel">
             <div class="panel-head">
+              <h2>Meine Lauflisten</h2>
+              <span class="badge" id="savedListCount">0</span>
+            </div>
+            <p class="hint">
+              Gespeichert auf diesem Gerät – Teilnehmerlisten jederzeit wieder
+              verwenden.
+            </p>
+            <div id="savedListHome" class="race-list">
+              <p class="empty-hint">Noch keine Laufliste gespeichert.</p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
               <h2>Alle Rennen</h2>
               <span class="badge" id="raceListCount">0</span>
             </div>
@@ -81,6 +95,19 @@
               </button>
               <p class="share-note" id="setupShareNote" hidden>Link kopiert.</p>
             </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Gespeicherte Laufliste</h2>
+            </div>
+            <div id="savedListSetup" class="race-list">
+              <p class="empty-hint">Noch keine Laufliste auf diesem Gerät.</p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>Datei importieren</h2>
             <p class="hint">
               Excel (.xlsx) oder CSV. Spalten: Startnummer, Name, Geschlecht
               (M/W), Kategorie.
@@ -124,6 +151,9 @@
             </div>
             <button type="button" class="btn btn-primary" id="btnReady">
               Weiter zum Start
+            </button>
+            <button type="button" class="btn btn-ghost" id="btnSaveList">
+              Als Laufliste speichern
             </button>
           </div>
         </section>
@@ -271,6 +301,48 @@
             Abbrechen
           </button>
           <button type="button" class="btn btn-danger" id="btnConfirmDelete">
+            Ja, löschen
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="saveListModal" hidden>
+      <div class="modal-backdrop" data-close-save-list></div>
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <h2>Laufliste speichern</h2>
+        <p class="hint">Wird nur auf diesem Gerät gespeichert.</p>
+        <label class="field-label" for="saveListNameInput">Name der Liste</label>
+        <input
+          id="saveListNameInput"
+          class="text-input"
+          type="text"
+          maxlength="80"
+          placeholder="z. B. Vereinslauf Starterliste"
+          autocomplete="off"
+        />
+        <p class="error" id="saveListError" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close-save-list>
+            Abbrechen
+          </button>
+          <button type="button" class="btn btn-primary" id="btnConfirmSaveList">
+            Speichern
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="deleteListModal" hidden>
+      <div class="modal-backdrop" data-close-delete-list></div>
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <h2>Laufliste löschen?</h2>
+        <p id="deleteListModalText"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close-delete-list>
+            Abbrechen
+          </button>
+          <button type="button" class="btn btn-danger" id="btnConfirmDeleteList">
             Ja, löschen
           </button>
         </div>

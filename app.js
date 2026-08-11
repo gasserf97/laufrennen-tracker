@@ -1,6 +1,7 @@
 (() => {
   const { escapeHtml, formatElapsed, renderRanking, exportExcel } = window.RaceRanking;
   const OWN_RACES_KEY = "laufrennen.ownRaceIds";
+  const SAVED_LISTS_KEY = "laufrennen.savedLists";
 
   const state = {
     raceId: null,
@@ -14,6 +15,7 @@
     saveTimer: null,
     saving: false,
     deleteRaceId: null,
+    deleteListId: null,
   };
 
   const els = {
@@ -57,6 +59,17 @@
     deleteModal: document.getElementById("deleteModal"),
     deleteModalText: document.getElementById("deleteModalText"),
     btnConfirmDelete: document.getElementById("btnConfirmDelete"),
+    savedListHome: document.getElementById("savedListHome"),
+    savedListSetup: document.getElementById("savedListSetup"),
+    savedListCount: document.getElementById("savedListCount"),
+    btnSaveList: document.getElementById("btnSaveList"),
+    saveListModal: document.getElementById("saveListModal"),
+    saveListNameInput: document.getElementById("saveListNameInput"),
+    saveListError: document.getElementById("saveListError"),
+    btnConfirmSaveList: document.getElementById("btnConfirmSaveList"),
+    deleteListModal: document.getElementById("deleteListModal"),
+    deleteListModalText: document.getElementById("deleteListModalText"),
+    btnConfirmDeleteList: document.getElementById("btnConfirmDeleteList"),
     views: {
       home: document.getElementById("view-home"),
       setup: document.getElementById("view-setup"),
@@ -84,6 +97,243 @@
     const ids = getOwnRaceIds().filter((x) => x !== id);
     ids.unshift(id);
     localStorage.setItem(OWN_RACES_KEY, JSON.stringify(ids.slice(0, 100)));
+  }
+
+  function getSavedLists() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(SAVED_LISTS_KEY) || "[]");
+      return Array.isArray(raw) ? raw : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function writeSavedLists(lists) {
+    localStorage.setItem(SAVED_LISTS_KEY, JSON.stringify(lists));
+  }
+
+  function newListId() {
+    return Array.from(crypto.getRandomValues(new Uint8Array(5)))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  function participantToTemplate(p) {
+    return {
+      startNumber: p.startNumber,
+      name: p.name,
+      gender: p.gender,
+      category: p.category,
+    };
+  }
+
+  function participantsFromTemplate(templates) {
+    return templates.map((p, index) => ({
+      id: `${p.startNumber}-${index}`,
+      startNumber: p.startNumber,
+      name: p.name,
+      gender: p.gender,
+      category: p.category,
+      status: "pending",
+      finishMs: null,
+    }));
+  }
+
+  function formatListDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("de-CH", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+
+  function renderSavedListCards(container, mode) {
+    const lists = getSavedLists();
+    if (els.savedListCount) els.savedListCount.textContent = String(lists.length);
+
+    if (!lists.length) {
+      container.innerHTML =
+        mode === "home"
+          ? `<p class="empty-hint">Noch keine Laufliste gespeichert.</p>`
+          : `<p class="empty-hint">Noch keine Laufliste auf diesem Gerät.</p>`;
+      return;
+    }
+
+    container.innerHTML = lists
+      .map((list) => {
+        const count = list.participants?.length ?? 0;
+        const updated = formatListDate(list.updatedAt || list.createdAt);
+        const primaryAction =
+          mode === "home"
+            ? `<button type="button" class="btn btn-primary" data-use-list="${escapeHtml(list.id)}">Neues Rennen</button>`
+            : `<button type="button" class="btn btn-primary" data-load-list="${escapeHtml(list.id)}">Laden</button>`;
+        return `
+          <article class="race-card">
+            <div>
+              <h3>${escapeHtml(list.name)}</h3>
+              <p>${escapeHtml(`${count} Teilnehmer${updated ? ` · ${updated}` : ""}`)}</p>
+            </div>
+            <div class="race-card-actions">
+              ${primaryAction}
+              <button type="button" class="btn btn-danger-soft" data-delete-list="${escapeHtml(list.id)}" data-delete-list-name="${escapeHtml(list.name)}">
+                Löschen
+              </button>
+            </div>
+          </article>`;
+      })
+      .join("");
+  }
+
+  function renderSavedLists() {
+    if (els.savedListHome) renderSavedListCards(els.savedListHome, "home");
+    if (els.savedListSetup) renderSavedListCards(els.savedListSetup, "setup");
+  }
+
+  function openSaveListModal() {
+    if (!state.participants.length) {
+      showImportError("Zuerst Teilnehmer importieren oder laden.");
+      return;
+    }
+    els.saveListError.hidden = true;
+    els.saveListNameInput.value = state.raceName || "";
+    els.saveListModal.hidden = false;
+    els.saveListNameInput.focus();
+  }
+
+  function closeSaveListModal() {
+    els.saveListModal.hidden = true;
+    els.saveListError.hidden = true;
+  }
+
+  function saveCurrentList(name) {
+    const trimmed = String(name || "").trim();
+    if (!trimmed) throw new Error("Bitte einen Namen für die Liste eingeben.");
+    if (!state.participants.length) throw new Error("Keine Teilnehmer zum Speichern.");
+
+    const lists = getSavedLists();
+    const templates = state.participants.map(participantToTemplate);
+    const now = new Date().toISOString();
+    const existing = lists.find((l) => l.name === trimmed);
+
+    if (existing) {
+      existing.participants = templates;
+      existing.updatedAt = now;
+    } else {
+      lists.unshift({
+        id: newListId(),
+        name: trimmed,
+        createdAt: now,
+        updatedAt: now,
+        participants: templates,
+      });
+    }
+
+    writeSavedLists(lists.slice(0, 50));
+    renderSavedLists();
+  }
+
+  function getSavedListById(id) {
+    return getSavedLists().find((l) => l.id === id) || null;
+  }
+
+  function loadSavedListInSetup(list) {
+    if (!list?.participants?.length) {
+      throw new Error("Die Laufliste ist leer.");
+    }
+    state.participants = participantsFromTemplate(list.participants);
+    renderPreview();
+    showImportError("");
+    scheduleSave();
+  }
+
+  async function createRaceFromList(list) {
+    if (!list?.participants?.length) {
+      throw new Error("Die Laufliste ist leer.");
+    }
+    showHomeError("");
+    els.btnCreateRace.disabled = true;
+    try {
+      const race = await api("/api/races", {
+        method: "POST",
+        body: JSON.stringify({ name: list.name }),
+      });
+      const participants = participantsFromTemplate(list.participants);
+      await api(`/api/races/${race.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: race.name,
+          status: "setup",
+          participants,
+          startedAt: null,
+          endedAt: null,
+        }),
+      });
+      goRaceUrl(race.id);
+      applyRace({
+        ...race,
+        participants,
+        status: "setup",
+        startedAt: null,
+        endedAt: null,
+      });
+    } finally {
+      els.btnCreateRace.disabled = false;
+    }
+  }
+
+  function openDeleteListModal(id, name) {
+    state.deleteListId = id;
+    els.deleteListModalText.textContent = `„${name}" wird von diesem Gerät gelöscht.`;
+    els.deleteListModal.hidden = false;
+  }
+
+  function closeDeleteListModal() {
+    state.deleteListId = null;
+    els.deleteListModal.hidden = true;
+  }
+
+  function deleteSavedList(id) {
+    writeSavedLists(getSavedLists().filter((l) => l.id !== id));
+    closeDeleteListModal();
+    renderSavedLists();
+  }
+
+  function handleSavedListClick(event, mode) {
+    const useBtn = event.target.closest("[data-use-list]");
+    if (useBtn && mode === "home") {
+      const list = getSavedListById(useBtn.dataset.useList);
+      if (!list) {
+        showHomeError("Laufliste nicht gefunden.");
+        renderSavedLists();
+        return;
+      }
+      createRaceFromList(list).catch((error) => showHomeError(error.message));
+      return;
+    }
+
+    const loadBtn = event.target.closest("[data-load-list]");
+    if (loadBtn && mode === "setup") {
+      try {
+        const list = getSavedListById(loadBtn.dataset.loadList);
+        if (!list) throw new Error("Laufliste nicht gefunden.");
+        loadSavedListInSetup(list);
+      } catch (error) {
+        showImportError(error.message);
+        renderSavedLists();
+      }
+      return;
+    }
+
+    const deleteBtn = event.target.closest("[data-delete-list]");
+    if (deleteBtn) {
+      openDeleteListModal(
+        deleteBtn.dataset.deleteList,
+        deleteBtn.dataset.deleteListName || "Laufliste"
+      );
+    }
   }
 
   function goHomeUrl() {
@@ -199,6 +449,7 @@
 
     if (phase === "setup") {
       renderPreview();
+      renderSavedLists();
       setPhase("setup");
       if (els.setupTitle) els.setupTitle.textContent = race.name;
     } else if (phase === "ready") {
@@ -255,6 +506,7 @@
     showHomeError("");
     setPhase("home");
     goHomeUrl();
+    renderSavedLists();
 
     els.raceList.innerHTML = `<p class="empty-hint">Lade Rennen…</p>`;
     try {
@@ -754,6 +1006,46 @@
     if (deleteBtn) {
       openDeleteModal(deleteBtn.dataset.deleteRace, deleteBtn.dataset.deleteName || "Rennen");
     }
+  });
+
+  els.savedListHome?.addEventListener("click", (event) => {
+    handleSavedListClick(event, "home");
+  });
+
+  els.savedListSetup?.addEventListener("click", (event) => {
+    handleSavedListClick(event, "setup");
+  });
+
+  els.btnSaveList?.addEventListener("click", () => {
+    openSaveListModal();
+  });
+
+  els.btnConfirmSaveList?.addEventListener("click", () => {
+    try {
+      saveCurrentList(els.saveListNameInput.value);
+      closeSaveListModal();
+      showImportError("");
+    } catch (error) {
+      els.saveListError.hidden = false;
+      els.saveListError.textContent = error.message;
+    }
+  });
+
+  els.saveListNameInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") els.btnConfirmSaveList?.click();
+  });
+
+  els.saveListModal?.querySelectorAll("[data-close-save-list]").forEach((node) => {
+    node.addEventListener("click", closeSaveListModal);
+  });
+
+  els.btnConfirmDeleteList?.addEventListener("click", () => {
+    if (!state.deleteListId) return;
+    deleteSavedList(state.deleteListId);
+  });
+
+  els.deleteListModal?.querySelectorAll("[data-close-delete-list]").forEach((node) => {
+    node.addEventListener("click", closeDeleteListModal);
   });
 
   [
