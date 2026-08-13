@@ -22,6 +22,7 @@ Mobiles Web-Tool für **Laufrennen** und **Tennis-Turniere**.
 - Ergebnis pro Spiel (0–13): Sieger 3 Punkte; bei **13:11** Sieger 2 / Verlierer 1
 - Nach allen Gruppenspielen: K.O. mit 8 / 16 / 32
 - Öffentliche Anzeige `/t/<id>`: nächste Spiele ↔ Tabellen (30s), in der K.O. nur Baum
+- Turniere bleiben serverseitig gespeichert und können jederzeit fortgesetzt oder gelöscht werden
 
 ## Lokal starten
 

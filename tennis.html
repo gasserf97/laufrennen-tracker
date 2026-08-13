@@ -33,16 +33,38 @@
           <div class="panel">
             <h1>Tennis-Turnier</h1>
             <p class="hint">
-              Einzel oder Doppel. Danach Teilnehmer importieren, Gruppen
-              festlegen und Spielplan erstellen.
+              Neues Turnier starten oder ein gespeichertes fortsetzen. Turniere
+              bleiben gespeichert, bis du sie löschst.
             </p>
+            <label class="field-label" for="tournamentNameInput"
+              >Name des Turniers</label
+            >
+            <input
+              id="tournamentNameInput"
+              class="text-input"
+              type="text"
+              maxlength="80"
+              placeholder="z. B. Clubmeisterschaft Mai"
+              autocomplete="off"
+            />
+            <p class="error" id="modeError" hidden></p>
             <button type="button" class="btn btn-primary btn-xl" id="btnSingles">
-              Einzelturnier
+              Neues Einzelturnier
             </button>
             <button type="button" class="btn btn-ghost btn-xl" id="btnDoubles">
-              Doppelturnier
+              Neues Doppelturnier
             </button>
             <a class="btn btn-ghost" href="/">← Zurück zur Übersicht</a>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Gespeicherte Turniere</h2>
+              <span class="badge" id="tournamentListCount">0</span>
+            </div>
+            <div id="tournamentList" class="race-list">
+              <p class="empty-hint">Noch keine Turniere gespeichert.</p>
+            </div>
           </div>
         </section>
 
@@ -203,6 +225,24 @@
       <footer class="site-footer">
         <p>Powered by Fabian Gasser</p>
       </footer>
+    </div>
+
+    <div class="modal" id="deleteTournamentModal" hidden>
+      <div class="modal-backdrop" data-close-delete-tournament></div>
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <h2>Turnier löschen?</h2>
+        <p id="deleteTournamentText">
+          Das Turnier und alle Ergebnisse werden unwiderruflich gelöscht.
+        </p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close-delete-tournament>
+            Abbrechen
+          </button>
+          <button type="button" class="btn btn-danger" id="btnConfirmDeleteTournament">
+            Ja, löschen
+          </button>
+        </div>
+      </div>
     </div>
 
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>

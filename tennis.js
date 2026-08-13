@@ -4,6 +4,7 @@
 
   const state = {
     tournamentId: null,
+    tournamentName: "",
     phase: "setup", // setup | groups | ko
     mode: null,
     teams: [],
@@ -14,12 +15,20 @@
     koSize: 8,
     koRounds: [],
     saveTimer: null,
+    deleteTournamentId: null,
   };
 
   const els = {
     subtitle: document.getElementById("subtitle"),
     btnSingles: document.getElementById("btnSingles"),
     btnDoubles: document.getElementById("btnDoubles"),
+    tournamentNameInput: document.getElementById("tournamentNameInput"),
+    modeError: document.getElementById("modeError"),
+    tournamentList: document.getElementById("tournamentList"),
+    tournamentListCount: document.getElementById("tournamentListCount"),
+    deleteTournamentModal: document.getElementById("deleteTournamentModal"),
+    deleteTournamentText: document.getElementById("deleteTournamentText"),
+    btnConfirmDeleteTournament: document.getElementById("btnConfirmDeleteTournament"),
     btnBackMode: document.getElementById("btnBackMode"),
     btnBackImport: document.getElementById("btnBackImport"),
     btnBackGroups: document.getElementById("btnBackGroups"),
@@ -100,6 +109,12 @@
     els.groupError.textContent = message || "";
   }
 
+  function showModeError(message) {
+    if (!els.modeError) return;
+    els.modeError.hidden = !message;
+    els.modeError.textContent = message || "";
+  }
+
   function showKoError(message) {
     els.koError.hidden = !message;
     els.koError.textContent = message || "";
@@ -135,6 +150,7 @@
 
   function payloadFromState() {
     return {
+      name: state.tournamentName || "Tennis-Turnier",
       phase: state.phase === "ko" ? "ko" : "groups",
       mode: state.mode,
       teams: state.teams,
@@ -145,6 +161,176 @@
       koSize: state.koSize,
       koRounds: state.koRounds,
     };
+  }
+
+  function phaseLabel(phase, mode) {
+    const modeLabel = mode === "doubles" ? "Doppel" : "Einzel";
+    if (phase === "ko") return `${modeLabel} · K.O.`;
+    if (phase === "groups") return `${modeLabel} · Gruppenphase`;
+    return modeLabel;
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleString("de-CH", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  async function loadTournamentList() {
+    if (!els.tournamentList) return;
+    els.tournamentList.innerHTML = `<p class="empty-hint">Lade Turniere…</p>`;
+    try {
+      const res = await fetch("/api/tournaments");
+      const list = await res.json().catch(() => []);
+      if (!res.ok) throw new Error(list.error || "Turniere laden fehlgeschlagen.");
+      if (els.tournamentListCount) {
+        els.tournamentListCount.textContent = String(list.length);
+      }
+      if (!list.length) {
+        els.tournamentList.innerHTML =
+          `<p class="empty-hint">Noch keine Turniere gespeichert.</p>`;
+        return;
+      }
+      els.tournamentList.innerHTML = list
+        .map((t) => {
+          const meta = [
+            phaseLabel(t.phase, t.mode),
+            `${t.teamCount} Teilnehmer`,
+            t.matchCount
+              ? `${t.doneMatches || 0}/${t.matchCount} Spiele`
+              : null,
+            formatDate(t.updatedAt),
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          return `
+            <article class="race-card">
+              <div>
+                <h3>${escapeHtml(t.name || "Tennis-Turnier")}</h3>
+                <p>${escapeHtml(meta)}</p>
+              </div>
+              <div class="race-card-actions">
+                <button type="button" class="btn btn-primary" data-open-tournament="${escapeHtml(t.id)}">
+                  Fortsetzen
+                </button>
+                <button type="button" class="btn btn-ghost" data-copy-display="${escapeHtml(t.id)}">
+                  Anzeige
+                </button>
+                <button type="button" class="btn btn-danger-soft" data-delete-tournament="${escapeHtml(t.id)}" data-delete-tournament-name="${escapeHtml(t.name || "Turnier")}">
+                  Löschen
+                </button>
+              </div>
+            </article>`;
+        })
+        .join("");
+    } catch (error) {
+      els.tournamentList.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
+    }
+  }
+
+  function goTournamentUrl(id) {
+    const hash = `#/tournament/${id}`;
+    if (location.hash !== hash) {
+      history.replaceState({}, "", `${location.pathname}${hash}`);
+    }
+  }
+
+  function clearTournamentUrl() {
+    if (location.hash) history.replaceState({}, "", location.pathname);
+  }
+
+  function applyTournament(tournament) {
+    state.tournamentId = tournament.id;
+    state.tournamentName = tournament.name || "Tennis-Turnier";
+    state.mode = tournament.mode || "singles";
+    state.phase = tournament.phase === "ko" ? "ko" : "groups";
+    state.teams = Array.isArray(tournament.teams) ? tournament.teams : [];
+    state.groupCount = tournament.groupCount || 1;
+    state.groups = Array.isArray(tournament.groups) ? tournament.groups : [];
+    state.schedule = Array.isArray(tournament.schedule) ? tournament.schedule : [];
+    state.matches = Array.isArray(tournament.matches) ? tournament.matches : [];
+    state.koSize = tournament.koSize || 8;
+    state.koRounds = Array.isArray(tournament.koRounds) ? tournament.koRounds : [];
+    fillDisplayLinks();
+    goTournamentUrl(tournament.id);
+
+    if (state.phase === "ko" && state.koRounds.length) {
+      renderKo();
+      setView("ko");
+      return;
+    }
+    if (state.schedule.length && state.matches.length) {
+      renderSchedule();
+      setView("schedule");
+      return;
+    }
+    if (state.teams.length) {
+      renderPreview();
+      setView("import");
+      return;
+    }
+    setView("import");
+  }
+
+  async function openTournament(id) {
+    const res = await fetch(`/api/tournaments/${id}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Turnier nicht gefunden.");
+    applyTournament(data);
+  }
+
+  function openDeleteTournamentModal(id, name) {
+    state.deleteTournamentId = id;
+    els.deleteTournamentText.textContent = `„${name}" und alle Ergebnisse werden unwiderruflich gelöscht.`;
+    els.deleteTournamentModal.hidden = false;
+  }
+
+  function closeDeleteTournamentModal() {
+    state.deleteTournamentId = null;
+    els.deleteTournamentModal.hidden = true;
+  }
+
+  async function deleteTournament(id) {
+    const res = await fetch(`/api/tournaments/${id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Löschen fehlgeschlagen.");
+    if (state.tournamentId === id) {
+      state.tournamentId = null;
+      clearTournamentUrl();
+    }
+    closeDeleteTournamentModal();
+    await goHome();
+  }
+
+  async function goHome() {
+    state.tournamentId = null;
+    state.tournamentName = "";
+    state.phase = "setup";
+    state.mode = null;
+    state.teams = [];
+    state.groups = [];
+    state.schedule = [];
+    state.matches = [];
+    state.koRounds = [];
+    els.fileInput.value = "";
+    els.previewBlock.hidden = true;
+    els.groupCountInput.value = "2";
+    els.koSetupBox.hidden = true;
+    fillDisplayLinks();
+    showImportError("");
+    showGroupError("");
+    showKoError("");
+    showModeError("");
+    clearTournamentUrl();
+    setView("mode");
+    await loadTournamentList();
   }
 
   async function ensureTournamentSaved() {
@@ -286,8 +472,16 @@
   }
 
   function setupMode(mode) {
+    const name = (els.tournamentNameInput?.value || "").trim();
+    if (!name) {
+      showModeError("Bitte einen Namen für das Turnier eingeben.");
+      els.tournamentNameInput?.focus();
+      return;
+    }
+    showModeError("");
     state.mode = mode;
     state.tournamentId = null;
+    state.tournamentName = name;
     state.phase = "setup";
     state.teams = [];
     state.groups = [];
@@ -883,29 +1077,15 @@
   }
 
   function resetAll() {
-    state.tournamentId = null;
-    state.phase = "setup";
-    state.mode = null;
-    state.teams = [];
-    state.groupCount = 2;
-    state.groups = [];
-    state.schedule = [];
-    state.matches = [];
-    state.koRounds = [];
-    els.fileInput.value = "";
-    els.previewBlock.hidden = true;
-    els.groupCountInput.value = "2";
-    els.koSetupBox.hidden = true;
-    fillDisplayLinks();
-    showImportError("");
-    showGroupError("");
-    showKoError("");
-    setView("mode");
+    goHome();
   }
 
   els.btnSingles.addEventListener("click", () => setupMode("singles"));
   els.btnDoubles.addEventListener("click", () => setupMode("doubles"));
-  els.btnBackMode.addEventListener("click", resetAll);
+  els.tournamentNameInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") setupMode("singles");
+  });
+  els.btnBackMode.addEventListener("click", () => goHome());
   els.btnBackImport.addEventListener("click", () => setView("import"));
   els.btnBackGroups.addEventListener("click", () => {
     setView("groups");
@@ -915,8 +1095,53 @@
     setView("schedule");
     renderSchedule();
   });
-  els.btnNewTennis.addEventListener("click", resetAll);
-  els.btnNewTennisFromKo.addEventListener("click", resetAll);
+  els.btnNewTennis.addEventListener("click", () => goHome());
+  els.btnNewTennisFromKo.addEventListener("click", () => goHome());
+
+  els.tournamentList?.addEventListener("click", async (event) => {
+    const openBtn = event.target.closest("[data-open-tournament]");
+    if (openBtn) {
+      try {
+        showModeError("");
+        await openTournament(openBtn.dataset.openTournament);
+      } catch (error) {
+        showModeError(error.message);
+      }
+      return;
+    }
+
+    const copyBtn = event.target.closest("[data-copy-display]");
+    if (copyBtn) {
+      const url = `${location.origin}/t/${copyBtn.dataset.copyDisplay}`;
+      const ok = await copyText(url);
+      showModeError(ok ? "Anzeige-Link kopiert." : `Link: ${url}`);
+      return;
+    }
+
+    const deleteBtn = event.target.closest("[data-delete-tournament]");
+    if (deleteBtn) {
+      openDeleteTournamentModal(
+        deleteBtn.dataset.deleteTournament,
+        deleteBtn.dataset.deleteTournamentName || "Turnier"
+      );
+    }
+  });
+
+  els.btnConfirmDeleteTournament?.addEventListener("click", async () => {
+    if (!state.deleteTournamentId) return;
+    try {
+      await deleteTournament(state.deleteTournamentId);
+    } catch (error) {
+      closeDeleteTournamentModal();
+      showModeError(error.message);
+    }
+  });
+
+  els.deleteTournamentModal
+    ?.querySelectorAll("[data-close-delete-tournament]")
+    .forEach((node) => {
+      node.addEventListener("click", closeDeleteTournamentModal);
+    });
 
   els.fileInput.addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
@@ -979,5 +1204,25 @@
     onKoScoreChange(select.dataset.koMatch, select.dataset.side, select.value);
   });
 
-  setView("mode");
+  async function bootFromHash() {
+    const match = location.hash.match(/^#\/tournament\/([a-z0-9]+)/i);
+    if (match) {
+      if (state.tournamentId === match[1] && (state.phase === "groups" || state.phase === "ko")) {
+        return;
+      }
+      try {
+        await openTournament(match[1]);
+        return;
+      } catch (error) {
+        showModeError(error.message);
+      }
+    }
+    await goHome();
+  }
+
+  window.addEventListener("hashchange", () => {
+    bootFromHash();
+  });
+
+  bootFromHash();
 })();

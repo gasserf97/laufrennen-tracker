@@ -170,6 +170,7 @@ app.post(
     const now = new Date().toISOString();
     const tournament = {
       id: newId(),
+      name: String(body.name || "").trim() || "Tennis-Turnier",
       createdAt: now,
       updatedAt: now,
       phase: body.phase || "groups",
@@ -188,6 +189,34 @@ app.post(
     db.tournaments[tournament.id] = tournament;
     await writeDb(db);
     res.status(201).json(tournament);
+  })
+);
+
+app.get(
+  "/api/tournaments",
+  asyncHandler(async (_req, res) => {
+    const db = await readDb();
+    const list = Object.values(db.tournaments || {})
+      .map((t) => ({
+        id: t.id,
+        name: t.name || "Tennis-Turnier",
+        mode: t.mode,
+        phase: t.phase,
+        teamCount: Array.isArray(t.teams) ? t.teams.length : 0,
+        matchCount: Array.isArray(t.matches) ? t.matches.length : 0,
+        doneMatches: Array.isArray(t.matches)
+          ? t.matches.filter(
+              (m) =>
+                m.homeScore != null &&
+                m.awayScore != null &&
+                m.homeScore !== m.awayScore
+            ).length
+          : 0,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      }))
+      .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+    res.json(list);
   })
 );
 
@@ -217,6 +246,10 @@ app.put(
       ...existing,
       ...body,
       id: existing.id,
+      name:
+        body.name != null
+          ? String(body.name).trim() || existing.name || "Tennis-Turnier"
+          : existing.name || "Tennis-Turnier",
       createdAt: existing.createdAt,
       updatedAt: new Date().toISOString(),
     };
@@ -224,6 +257,19 @@ app.put(
     db.tournaments[next.id] = next;
     await writeDb(db);
     res.json(next);
+  })
+);
+
+app.delete(
+  "/api/tournaments/:id",
+  asyncHandler(async (req, res) => {
+    const db = await readDb();
+    if (!db.tournaments?.[req.params.id]) {
+      return res.status(404).json({ error: "Turnier nicht gefunden." });
+    }
+    delete db.tournaments[req.params.id];
+    await writeDb(db);
+    res.json({ ok: true });
   })
 );
 
