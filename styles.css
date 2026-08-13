@@ -204,6 +204,12 @@ input {
   font-weight: 700;
   cursor: pointer;
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+  box-sizing: border-box;
   transition: transform 0.12s ease, opacity 0.12s ease;
 }
 
@@ -213,6 +219,10 @@ input {
 
 .btn + .btn {
   margin-top: 10px;
+}
+
+a.btn {
+  color: inherit;
 }
 
 .btn-primary {
@@ -241,6 +251,15 @@ input {
   display: inline-flex;
   padding: 8px 12px;
   margin-bottom: 12px;
+}
+
+.action-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.action-stack .btn {
+  margin-top: 0;
 }
 
 .field-label {
