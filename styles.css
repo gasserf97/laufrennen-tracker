@@ -890,3 +890,53 @@ tbody tr:last-child td {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.score-select {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff;
+  font-family: var(--mono);
+  font-weight: 700;
+}
+
+.score-sep {
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.score-rules {
+  font-size: 0.88rem;
+}
+
+.standings-content {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.ko-setup {
+  margin: 8px 0 14px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #eef5f0, #f7faf7);
+}
+
+.ko-setup h2 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+select.text-input {
+  appearance: auto;
+}

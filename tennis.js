@@ -1,12 +1,16 @@
 (() => {
   const COURTS = 2;
+  const SCORE_MAX = 13;
 
   const state = {
-    mode: null, // singles | doubles
+    mode: null,
     teams: [],
     groupCount: 2,
     groups: [],
     schedule: [],
+    matches: [],
+    koSize: 8,
+    koRounds: [],
   };
 
   const els = {
@@ -16,9 +20,12 @@
     btnBackMode: document.getElementById("btnBackMode"),
     btnBackImport: document.getElementById("btnBackImport"),
     btnBackGroups: document.getElementById("btnBackGroups"),
+    btnBackSchedule: document.getElementById("btnBackSchedule"),
     btnToGroups: document.getElementById("btnToGroups"),
     btnBuildSchedule: document.getElementById("btnBuildSchedule"),
+    btnBuildKo: document.getElementById("btnBuildKo"),
     btnNewTennis: document.getElementById("btnNewTennis"),
+    btnNewTennisFromKo: document.getElementById("btnNewTennisFromKo"),
     importTitle: document.getElementById("importTitle"),
     importHint: document.getElementById("importHint"),
     sampleLink: document.getElementById("sampleLink"),
@@ -34,11 +41,19 @@
     groupPreview: document.getElementById("groupPreview"),
     scheduleSummary: document.getElementById("scheduleSummary"),
     scheduleContent: document.getElementById("scheduleContent"),
+    standingsContent: document.getElementById("standingsContent"),
+    koSetupBox: document.getElementById("koSetupBox"),
+    koSetupHint: document.getElementById("koSetupHint"),
+    koSizeSelect: document.getElementById("koSizeSelect"),
+    koError: document.getElementById("koError"),
+    koSummary: document.getElementById("koSummary"),
+    koContent: document.getElementById("koContent"),
     views: {
       mode: document.getElementById("view-mode"),
       import: document.getElementById("view-import"),
       groups: document.getElementById("view-groups"),
       schedule: document.getElementById("view-schedule"),
+      ko: document.getElementById("view-ko"),
     },
   };
 
@@ -58,7 +73,8 @@
       mode: "Turnierart wählen",
       import: state.mode === "doubles" ? "Doppel · Teilnehmer" : "Einzel · Teilnehmer",
       groups: "Gruppen einteilen",
-      schedule: "Spielplan",
+      schedule: "Gruppenspiele",
+      ko: "K.O.-Phase",
     };
     els.subtitle.textContent = labels[name] || "";
   }
@@ -73,9 +89,23 @@
     els.groupError.textContent = message || "";
   }
 
+  function showKoError(message) {
+    els.koError.hidden = !message;
+    els.koError.textContent = message || "";
+  }
+
   function teamLabel(team) {
+    if (!team) return "TBD";
     if (team.player2) return `${team.player1} / ${team.player2}`;
     return team.player1;
+  }
+
+  function scoreOptions(selected) {
+    let html = `<option value="">–</option>`;
+    for (let i = 0; i <= SCORE_MAX; i += 1) {
+      html += `<option value="${i}" ${String(selected) === String(i) ? "selected" : ""}>${i}</option>`;
+    }
+    return html;
   }
 
   function cell(row, index) {
@@ -101,20 +131,14 @@
   function parseSingles(rows) {
     let data = rows;
     if (looksLikeHeader(rows[0])) data = rows.slice(1);
-
     const teams = [];
     data.forEach((row, index) => {
       const col0 = String(cell(row, 0) ?? "").trim();
       const col1 = String(cell(row, 1) ?? "").trim();
-      // Prefer name in col1 if col0 looks like a start number
       let name = col0;
       if (/^\d+$/.test(col0) && col1) name = col1;
       if (!name) return;
-      teams.push({
-        id: `t${index + 1}`,
-        player1: name,
-        player2: null,
-      });
+      teams.push({ id: `t${index + 1}`, player1: name, player2: null });
     });
     if (teams.length < 2) throw new Error("Mindestens 2 Spieler nötig.");
     return teams;
@@ -123,7 +147,6 @@
   function parseDoubles(rows) {
     let data = rows;
     if (looksLikeHeader(rows[0])) data = rows.slice(1);
-
     const teams = [];
     data.forEach((row, index) => {
       const p1 = String(cell(row, 0) ?? "").trim();
@@ -134,11 +157,7 @@
           `Zeile ${index + 1}: Bei Doppel müssen Spalte 1 und 2 gefüllt sein.`
         );
       }
-      teams.push({
-        id: `t${index + 1}`,
-        player1: p1,
-        player2: p2,
-      });
+      teams.push({ id: `t${index + 1}`, player1: p1, player2: p2 });
     });
     if (teams.length < 2) throw new Error("Mindestens 2 Mannschaften nötig.");
     return teams;
@@ -168,11 +187,10 @@
       ? "<th>#</th><th>Spieler 1</th><th>Spieler 2</th>"
       : "<th>#</th><th>Name</th>";
     els.previewBody.innerHTML = state.teams
-      .map(
-        (t, i) =>
-          doubles
-            ? `<tr><td>${i + 1}</td><td>${escapeHtml(t.player1)}</td><td>${escapeHtml(t.player2)}</td></tr>`
-            : `<tr><td>${i + 1}</td><td>${escapeHtml(t.player1)}</td></tr>`
+      .map((t, i) =>
+        doubles
+          ? `<tr><td>${i + 1}</td><td>${escapeHtml(t.player1)}</td><td>${escapeHtml(t.player2)}</td></tr>`
+          : `<tr><td>${i + 1}</td><td>${escapeHtml(t.player1)}</td></tr>`
       )
       .join("");
     els.teamCount.textContent = String(state.teams.length);
@@ -184,6 +202,8 @@
     state.teams = [];
     state.groups = [];
     state.schedule = [];
+    state.matches = [];
+    state.koRounds = [];
     els.fileInput.value = "";
     els.previewBlock.hidden = true;
     showImportError("");
@@ -205,23 +225,16 @@
   function splitIntoGroups(teams, groupCount) {
     const n = teams.length;
     if (groupCount < 1) throw new Error("Mindestens 1 Gruppe.");
-    if (groupCount > n) {
-      throw new Error("Nicht mehr Gruppen als Mannschaften möglich.");
-    }
-    const shuffled = [...teams];
-    // Deterministic shuffle by id so re-renders stay stable unless count changes
-    shuffled.sort((a, b) => String(a.id).localeCompare(String(b.id)));
-
+    if (groupCount > n) throw new Error("Nicht mehr Gruppen als Mannschaften möglich.");
+    const shuffled = [...teams].sort((a, b) => String(a.id).localeCompare(String(b.id)));
     const groups = Array.from({ length: groupCount }, (_, i) => ({
       id: i + 1,
       name: `Gruppe ${String.fromCharCode(65 + i)}`,
       teams: [],
     }));
-
     shuffled.forEach((team, index) => {
       groups[index % groupCount].teams.push(team);
     });
-
     if (groups.some((g) => g.teams.length < 2)) {
       throw new Error(
         "Jede Gruppe braucht mindestens 2 Mannschaften. Weniger Gruppen wählen."
@@ -245,9 +258,7 @@
           <article class="group-card">
             <h3>${escapeHtml(g.name)} <span class="badge">${g.teams.length}</span></h3>
             <ul>
-              ${g.teams
-                .map((t) => `<li>${escapeHtml(teamLabel(t))}</li>`)
-                .join("")}
+              ${g.teams.map((t) => `<li>${escapeHtml(teamLabel(t))}</li>`).join("")}
             </ul>
           </article>`
         )
@@ -259,27 +270,22 @@
     }
   }
 
-  /** Circle method: rounds of matches for n teams (bye if odd). */
   function roundRobinRounds(teams) {
     const list = [...teams];
-    if (list.length % 2 === 1) list.push(null); // bye
+    if (list.length % 2 === 1) list.push(null);
     const n = list.length;
     const rounds = n - 1;
     const half = n / 2;
     const arr = [...list];
     const result = [];
-
     for (let r = 0; r < rounds; r += 1) {
       const matches = [];
       for (let i = 0; i < half; i += 1) {
         const a = arr[i];
         const b = arr[n - 1 - i];
-        if (a && b) {
-          matches.push({ home: a, away: b });
-        }
+        if (a && b) matches.push({ home: a, away: b });
       }
       result.push(matches);
-      // rotate: keep first fixed
       const fixed = arr[0];
       const rest = arr.slice(1);
       rest.unshift(rest.pop());
@@ -288,20 +294,27 @@
     return result;
   }
 
-  /** Split matches into slots of max COURTS concurrent matches. */
-  function assignCourts(rounds) {
+  function assignCourts(rounds, groupId) {
     const slots = [];
     let slotNo = 1;
+    let matchIndex = 0;
     rounds.forEach((matches) => {
       for (let i = 0; i < matches.length; i += COURTS) {
         const chunk = matches.slice(i, i + COURTS);
         slots.push({
           slot: slotNo,
-          matches: chunk.map((m, idx) => ({
-            court: idx + 1,
-            home: m.home,
-            away: m.away,
-          })),
+          matches: chunk.map((m, idx) => {
+            matchIndex += 1;
+            return {
+              id: `g${groupId}-m${matchIndex}`,
+              groupId,
+              court: idx + 1,
+              homeId: m.home.id,
+              awayId: m.away.id,
+              homeScore: null,
+              awayScore: null,
+            };
+          }),
         });
         slotNo += 1;
       }
@@ -309,27 +322,145 @@
     return slots;
   }
 
-  function buildSchedule() {
-    if (!state.groups.length) {
-      renderGroupPreview();
-      if (!state.groups.length) return;
+  function findTeam(id) {
+    return state.teams.find((t) => t.id === id) || null;
+  }
+
+  function getMatch(id) {
+    return state.matches.find((m) => m.id === id) || null;
+  }
+
+  /** Returns { homePts, awayPts } or null if incomplete/invalid. */
+  function calcMatchPoints(homeScore, awayScore) {
+    if (homeScore == null || awayScore == null) return null;
+    if (homeScore === awayScore) return null;
+    const hi = Math.max(homeScore, awayScore);
+    const lo = Math.min(homeScore, awayScore);
+    const isSpecial = hi === 13 && lo === 11;
+    if (homeScore > awayScore) {
+      return isSpecial ? { homePts: 2, awayPts: 1 } : { homePts: 3, awayPts: 0 };
     }
+    return isSpecial ? { homePts: 1, awayPts: 2 } : { homePts: 0, awayPts: 3 };
+  }
 
-    state.schedule = state.groups.map((group) => ({
-      group,
-      slots: assignCourts(roundRobinRounds(group.teams)),
-    }));
+  function isMatchComplete(match) {
+    return calcMatchPoints(match.homeScore, match.awayScore) != null;
+  }
 
-    const totalMatches = state.schedule.reduce(
-      (sum, g) => sum + g.slots.reduce((s, slot) => s + slot.matches.length, 0),
-      0
-    );
-    const totalSlots = Math.max(
-      ...state.schedule.map((g) => g.slots.length),
-      0
-    );
+  function allGroupMatchesDone() {
+    return state.matches.length > 0 && state.matches.every(isMatchComplete);
+  }
 
-    els.scheduleSummary.textContent = `${state.groups.length} Gruppen · ${totalMatches} Spiele · bis zu ${COURTS} Felder gleichzeitig · ${totalSlots} Zeitslots (max. über alle Gruppen)`;
+  function standingsForGroup(group) {
+    const stats = new Map();
+    group.teams.forEach((t) => {
+      stats.set(t.id, {
+        team: t,
+        played: 0,
+        won: 0,
+        points: 0,
+        scored: 0,
+        conceded: 0,
+      });
+    });
+
+    state.matches
+      .filter((m) => m.groupId === group.id)
+      .forEach((m) => {
+        const pts = calcMatchPoints(m.homeScore, m.awayScore);
+        if (!pts) return;
+        const home = stats.get(m.homeId);
+        const away = stats.get(m.awayId);
+        if (!home || !away) return;
+        home.played += 1;
+        away.played += 1;
+        home.scored += m.homeScore;
+        home.conceded += m.awayScore;
+        away.scored += m.awayScore;
+        away.conceded += m.homeScore;
+        home.points += pts.homePts;
+        away.points += pts.awayPts;
+        if (pts.homePts > pts.awayPts) home.won += 1;
+        else away.won += 1;
+      });
+
+    return [...stats.values()].sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      const diffA = a.scored - a.conceded;
+      const diffB = b.scored - b.conceded;
+      if (diffB !== diffA) return diffB - diffA;
+      if (b.scored !== a.scored) return b.scored - a.scored;
+      return String(a.team.player1).localeCompare(String(b.team.player1), "de");
+    });
+  }
+
+  function overallStandings() {
+    const byId = new Map();
+    state.groups.forEach((group) => {
+      standingsForGroup(group).forEach((row) => {
+        byId.set(row.team.id, row);
+      });
+    });
+    return [...byId.values()].sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      const diffA = a.scored - a.conceded;
+      const diffB = b.scored - b.conceded;
+      if (diffB !== diffA) return diffB - diffA;
+      if (b.scored !== a.scored) return b.scored - a.scored;
+      return String(a.team.player1).localeCompare(String(b.team.player1), "de");
+    });
+  }
+
+  function renderStandings() {
+    els.standingsContent.innerHTML = state.groups
+      .map((group) => {
+        const rows = standingsForGroup(group);
+        return `
+          <section class="result-section">
+            <header class="result-section-head">
+              <h3 class="result-section-title">${escapeHtml(group.name)} · Tabelle</h3>
+            </header>
+            <div class="result-section-body">
+              <div class="table-wrap table-wrap-compact">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Platz</th>
+                      <th>Mannschaft</th>
+                      <th>Sp</th>
+                      <th>S</th>
+                      <th>Pkt</th>
+                      <th>+/−</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rows
+                      .map((row, i) => {
+                        const diff = row.scored - row.conceded;
+                        const diffLabel = diff > 0 ? `+${diff}` : String(diff);
+                        return `<tr>
+                          <td class="rank-cell">${i + 1}</td>
+                          <td>${escapeHtml(teamLabel(row.team))}</td>
+                          <td>${row.played}</td>
+                          <td>${row.won}</td>
+                          <td class="rank-cell">${row.points}</td>
+                          <td>${diffLabel}</td>
+                        </tr>`;
+                      })
+                      .join("")}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>`;
+      })
+      .join("");
+  }
+
+  function renderSchedule() {
+    const done = state.matches.filter(isMatchComplete).length;
+    const total = state.matches.length;
+    els.scheduleSummary.textContent = `${state.groups.length} Gruppen · ${done}/${total} Spiele mit Ergebnis · max. ${COURTS} Felder gleichzeitig`;
 
     els.scheduleContent.innerHTML = state.schedule
       .map((block) => {
@@ -340,15 +471,29 @@
               <h4>Runde ${slot.slot}</h4>
               <div class="court-grid">
                 ${slot.matches
-                  .map(
-                    (m) => `
-                  <article class="match-card">
-                    <span class="court-label">Feld ${m.court}</span>
-                    <p class="match-side">${escapeHtml(teamLabel(m.home))}</p>
-                    <p class="match-vs">vs</p>
-                    <p class="match-side">${escapeHtml(teamLabel(m.away))}</p>
-                  </article>`
-                  )
+                  .map((m) => {
+                    const home = findTeam(m.homeId);
+                    const away = findTeam(m.awayId);
+                    const pts = calcMatchPoints(m.homeScore, m.awayScore);
+                    const ptsLabel = pts
+                      ? ` · ${pts.homePts}:${pts.awayPts} Pkt`
+                      : "";
+                    return `
+                  <article class="match-card" data-match-id="${escapeHtml(m.id)}">
+                    <span class="court-label">Feld ${m.court}${ptsLabel}</span>
+                    <p class="match-side">${escapeHtml(teamLabel(home))}</p>
+                    <div class="score-row">
+                      <select class="score-select" data-match="${escapeHtml(m.id)}" data-side="home" aria-label="Punkte Heim">
+                        ${scoreOptions(m.homeScore)}
+                      </select>
+                      <span class="score-sep">:</span>
+                      <select class="score-select" data-match="${escapeHtml(m.id)}" data-side="away" aria-label="Punkte Gast">
+                        ${scoreOptions(m.awayScore)}
+                      </select>
+                    </div>
+                    <p class="match-side">${escapeHtml(teamLabel(away))}</p>
+                  </article>`;
+                  })
                   .join("")}
               </div>
             </div>`
@@ -368,7 +513,271 @@
       })
       .join("");
 
+    renderStandings();
+    updateKoSetup();
+  }
+
+  function updateKoSetup() {
+    if (!allGroupMatchesDone()) {
+      els.koSetupBox.hidden = true;
+      return;
+    }
+    const available = state.teams.length;
+    els.koSetupBox.hidden = false;
+    els.koSetupHint.textContent = `Alle Gruppenspiele sind fertig (${available} Mannschaften). Wie viele kommen in die K.O.-Phase?`;
+    [...els.koSizeSelect.options].forEach((opt) => {
+      const n = Number(opt.value);
+      opt.disabled = n > available;
+      if (opt.disabled) opt.textContent = `${n} (zu wenig Teilnehmer)`;
+      else opt.textContent = String(n);
+    });
+    const firstOk = [...els.koSizeSelect.options].find((o) => !o.disabled);
+    if (firstOk) els.koSizeSelect.value = firstOk.value;
+  }
+
+  function buildSchedule() {
+    if (!state.groups.length) {
+      renderGroupPreview();
+      if (!state.groups.length) return;
+    }
+
+    state.schedule = state.groups.map((group) => ({
+      group,
+      slots: assignCourts(roundRobinRounds(group.teams), group.id),
+    }));
+    state.matches = state.schedule.flatMap((block) =>
+      block.slots.flatMap((slot) => slot.matches)
+    );
+    state.koRounds = [];
+    showKoError("");
+    renderSchedule();
     setView("schedule");
+  }
+
+  function onScoreChange(matchId, side, value) {
+    const match = getMatch(matchId);
+    if (!match) return;
+    const num = value === "" ? null : Number(value);
+    if (side === "home") match.homeScore = num;
+    else match.awayScore = num;
+
+    // Keep schedule object in sync
+    state.schedule.forEach((block) => {
+      block.slots.forEach((slot) => {
+        slot.matches.forEach((m) => {
+          if (m.id === matchId) {
+            m.homeScore = match.homeScore;
+            m.awayScore = match.awayScore;
+          }
+        });
+      });
+    });
+
+    renderSchedule();
+  }
+
+  function koRoundName(size) {
+    if (size === 2) return "Finale";
+    if (size === 4) return "Halbfinale";
+    if (size === 8) return "Viertelfinale";
+    if (size === 16) return "Achtelfinale";
+    if (size === 32) return "Runde der letzten 32";
+    return `K.O. ${size}`;
+  }
+
+  function seedPairings(teams) {
+    // Classic: 1 vs N, 2 vs N-1, ...
+    const n = teams.length;
+    const pairs = [];
+    for (let i = 0; i < n / 2; i += 1) {
+      pairs.push({ home: teams[i], away: teams[n - 1 - i] });
+    }
+    return pairs;
+  }
+
+  function buildKoBracket() {
+    showKoError("");
+    const size = Number(els.koSizeSelect.value);
+    if (![8, 16, 32].includes(size)) {
+      showKoError("Bitte 8, 16 oder 32 wählen.");
+      return;
+    }
+    if (size > state.teams.length) {
+      showKoError(`Nur ${state.teams.length} Mannschaften vorhanden.`);
+      return;
+    }
+    if (!allGroupMatchesDone()) {
+      showKoError("Zuerst alle Gruppenspiele ausfüllen.");
+      return;
+    }
+
+    state.koSize = size;
+    const qualified = overallStandings()
+      .slice(0, size)
+      .map((row) => row.team);
+
+    const rounds = [];
+    let current = seedPairings(qualified);
+    let roundSize = size;
+    let matchCounter = 0;
+
+    while (current.length) {
+      const slots = [];
+      let slotNo = 1;
+      for (let i = 0; i < current.length; i += COURTS) {
+        const chunk = current.slice(i, i + COURTS);
+        slots.push({
+          slot: slotNo,
+          matches: chunk.map((pair, idx) => {
+            matchCounter += 1;
+            return {
+              id: `ko-m${matchCounter}`,
+              court: idx + 1,
+              home: pair.home,
+              away: pair.away,
+              homeScore: null,
+              awayScore: null,
+              winnerId: null,
+            };
+          }),
+        });
+        slotNo += 1;
+      }
+
+      rounds.push({
+        name: koRoundName(roundSize),
+        size: roundSize,
+        slots,
+      });
+
+      // Placeholder next round until results exist
+      roundSize = roundSize / 2;
+      if (roundSize < 2) break;
+      current = Array.from({ length: roundSize }, () => ({
+        home: null,
+        away: null,
+      }));
+    }
+
+    state.koRounds = rounds;
+    renderKo();
+    setView("ko");
+  }
+
+  function getKoMatch(id) {
+    for (const round of state.koRounds) {
+      for (const slot of round.slots) {
+        for (const m of slot.matches) {
+          if (m.id === id) return m;
+        }
+      }
+    }
+    return null;
+  }
+
+  function koMatchWinner(match) {
+    const pts = calcMatchPoints(match.homeScore, match.awayScore);
+    if (!pts || !match.home || !match.away) return null;
+    return pts.homePts > pts.awayPts ? match.home : match.away;
+  }
+
+  function propagateKoWinners() {
+    for (let r = 0; r < state.koRounds.length - 1; r += 1) {
+      const round = state.koRounds[r];
+      const next = state.koRounds[r + 1];
+      const winners = [];
+      round.slots.forEach((slot) => {
+        slot.matches.forEach((m) => {
+          const w = koMatchWinner(m);
+          m.winnerId = w ? w.id : null;
+          winners.push(w);
+        });
+      });
+
+      let wi = 0;
+      next.slots.forEach((slot) => {
+        slot.matches.forEach((m) => {
+          m.home = winners[wi] || null;
+          m.away = winners[wi + 1] || null;
+          if (!m.home || !m.away) {
+            m.homeScore = null;
+            m.awayScore = null;
+            m.winnerId = null;
+          }
+          wi += 2;
+        });
+      });
+    }
+  }
+
+  function renderKo() {
+    propagateKoWinners();
+    els.koSummary.textContent = `Top ${state.koSize} nach Gruppentabelle · Ergebnisse wie in der Gruppenphase`;
+
+    els.koContent.innerHTML = state.koRounds
+      .map((round) => {
+        const slotsHtml = round.slots
+          .map(
+            (slot) => `
+            <div class="schedule-slot">
+              <h4>Runde ${slot.slot}</h4>
+              <div class="court-grid">
+                ${slot.matches
+                  .map((m) => {
+                    const ready = m.home && m.away;
+                    const pts = ready
+                      ? calcMatchPoints(m.homeScore, m.awayScore)
+                      : null;
+                    const ptsLabel = pts
+                      ? ` · ${pts.homePts}:${pts.awayPts} Pkt`
+                      : "";
+                    return `
+                  <article class="match-card">
+                    <span class="court-label">Feld ${m.court}${ptsLabel}</span>
+                    <p class="match-side">${escapeHtml(teamLabel(m.home))}</p>
+                    ${
+                      ready
+                        ? `<div class="score-row">
+                            <select class="score-select" data-ko-match="${escapeHtml(m.id)}" data-side="home">
+                              ${scoreOptions(m.homeScore)}
+                            </select>
+                            <span class="score-sep">:</span>
+                            <select class="score-select" data-ko-match="${escapeHtml(m.id)}" data-side="away">
+                              ${scoreOptions(m.awayScore)}
+                            </select>
+                          </div>`
+                        : `<p class="match-vs">wartet auf Ergebnis</p>`
+                    }
+                    <p class="match-side">${escapeHtml(teamLabel(m.away))}</p>
+                  </article>`;
+                  })
+                  .join("")}
+              </div>
+            </div>`
+          )
+          .join("");
+
+        return `
+          <section class="result-section">
+            <header class="result-section-head">
+              <h3 class="result-section-title">${escapeHtml(round.name)}</h3>
+              <p class="result-section-meta">${round.size} Mannschaften</p>
+            </header>
+            <div class="result-section-body schedule-body">
+              ${slotsHtml}
+            </div>
+          </section>`;
+      })
+      .join("");
+  }
+
+  function onKoScoreChange(matchId, side, value) {
+    const match = getKoMatch(matchId);
+    if (!match || !match.home || !match.away) return;
+    const num = value === "" ? null : Number(value);
+    if (side === "home") match.homeScore = num;
+    else match.awayScore = num;
+    renderKo();
   }
 
   function resetAll() {
@@ -377,25 +786,32 @@
     state.groupCount = 2;
     state.groups = [];
     state.schedule = [];
+    state.matches = [];
+    state.koRounds = [];
     els.fileInput.value = "";
     els.previewBlock.hidden = true;
     els.groupCountInput.value = "2";
+    els.koSetupBox.hidden = true;
     showImportError("");
     showGroupError("");
+    showKoError("");
     setView("mode");
   }
 
   els.btnSingles.addEventListener("click", () => setupMode("singles"));
   els.btnDoubles.addEventListener("click", () => setupMode("doubles"));
   els.btnBackMode.addEventListener("click", resetAll);
-  els.btnBackImport.addEventListener("click", () => {
-    setView("import");
-  });
+  els.btnBackImport.addEventListener("click", () => setView("import"));
   els.btnBackGroups.addEventListener("click", () => {
     setView("groups");
     renderGroupPreview();
   });
+  els.btnBackSchedule.addEventListener("click", () => {
+    setView("schedule");
+    renderSchedule();
+  });
   els.btnNewTennis.addEventListener("click", resetAll);
+  els.btnNewTennisFromKo.addEventListener("click", resetAll);
 
   els.fileInput.addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
@@ -422,12 +838,20 @@
     renderGroupPreview();
   });
 
-  els.groupCountInput.addEventListener("input", () => {
-    renderGroupPreview();
+  els.groupCountInput.addEventListener("input", () => renderGroupPreview());
+  els.btnBuildSchedule.addEventListener("click", () => buildSchedule());
+  els.btnBuildKo.addEventListener("click", () => buildKoBracket());
+
+  els.scheduleContent.addEventListener("change", (event) => {
+    const select = event.target.closest(".score-select[data-match]");
+    if (!select) return;
+    onScoreChange(select.dataset.match, select.dataset.side, select.value);
   });
 
-  els.btnBuildSchedule.addEventListener("click", () => {
-    buildSchedule();
+  els.koContent.addEventListener("change", (event) => {
+    const select = event.target.closest(".score-select[data-ko-match]");
+    if (!select) return;
+    onKoScoreChange(select.dataset.koMatch, select.dataset.side, select.value);
   });
 
   setView("mode");

@@ -29,7 +29,6 @@
       </header>
 
       <main>
-        <!-- Mode -->
         <section id="view-mode" class="view">
           <div class="panel">
             <h1>Tennis-Turnier</h1>
@@ -47,7 +46,6 @@
           </div>
         </section>
 
-        <!-- Import -->
         <section id="view-import" class="view" hidden>
           <div class="panel">
             <button type="button" class="btn btn-ghost btn-inline" id="btnBackMode">
@@ -95,7 +93,6 @@
           </div>
         </section>
 
-        <!-- Groups -->
         <section id="view-groups" class="view" hidden>
           <div class="panel">
             <button type="button" class="btn btn-ghost btn-inline" id="btnBackImport">
@@ -129,16 +126,54 @@
           </div>
         </section>
 
-        <!-- Schedule -->
         <section id="view-schedule" class="view" hidden>
           <div class="panel">
             <button type="button" class="btn btn-ghost btn-inline" id="btnBackGroups">
               ← Gruppen
             </button>
-            <h1>Spielplan</h1>
+            <h1>Gruppenspiele</h1>
             <p class="hint" id="scheduleSummary"></p>
+            <p class="hint score-rules">
+              Ergebnis pro Spiel setzen (0–13). Normal: Sieger = 3 Punkte.
+              Bei 13:11: Sieger = 2, Verlierer = 1.
+            </p>
+            <div id="standingsContent" class="standings-content"></div>
             <div id="scheduleContent" class="schedule-content"></div>
+
+            <div id="koSetupBox" class="ko-setup" hidden>
+              <h2>K.O.-Phase</h2>
+              <p class="hint" id="koSetupHint">
+                Alle Gruppenspiele sind fertig. Wie viele kommen weiter?
+              </p>
+              <label class="field-label" for="koSizeSelect"
+                >Teilnehmer K.O.</label
+              >
+              <select id="koSizeSelect" class="text-input">
+                <option value="8">8</option>
+                <option value="16">16</option>
+                <option value="32">32</option>
+              </select>
+              <p class="error" id="koError" hidden></p>
+              <button type="button" class="btn btn-primary btn-xl" id="btnBuildKo">
+                K.O.-Spielplan erstellen
+              </button>
+            </div>
+
             <button type="button" class="btn btn-ghost" id="btnNewTennis">
+              Neues Turnier
+            </button>
+          </div>
+        </section>
+
+        <section id="view-ko" class="view" hidden>
+          <div class="panel">
+            <button type="button" class="btn btn-ghost btn-inline" id="btnBackSchedule">
+              ← Gruppenspiele
+            </button>
+            <h1>K.O.-Phase</h1>
+            <p class="hint" id="koSummary"></p>
+            <div id="koContent" class="schedule-content"></div>
+            <button type="button" class="btn btn-ghost" id="btnNewTennisFromKo">
               Neues Turnier
             </button>
           </div>

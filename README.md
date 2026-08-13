@@ -19,6 +19,8 @@ Mobiles Web-Tool für **Laufrennen** und **Tennis-Turniere**.
 - Excel/CSV-Import (Doppel: Spalte 1 + 2 = Mannschaft)
 - Gruppenanzahl wählen
 - Spielplan: jeder gegen jeden, max. 2 Felder gleichzeitig
+- Ergebnis pro Spiel (0–13): Sieger 3 Punkte; bei **13:11** Sieger 2 / Verlierer 1
+- Nach allen Gruppenspielen: K.O. mit 8 / 16 / 32
 
 ## Lokal starten
 
