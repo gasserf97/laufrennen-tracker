@@ -168,7 +168,23 @@ app.get("/e/:id", (_req, res) => {
 });
 
 app.get("/r/:id", (_req, res) => {
-  res.sendFile(path.join(ROOT, "index.html"));
+  res.sendFile(path.join(ROOT, "laufen.html"));
+});
+
+app.get("/laufen", (_req, res) => {
+  res.sendFile(path.join(ROOT, "laufen.html"));
+});
+
+app.get("/laufen/", (_req, res) => {
+  res.redirect("/laufen");
+});
+
+app.get("/tennis", (_req, res) => {
+  res.sendFile(path.join(ROOT, "tennis.html"));
+});
+
+app.get("/tennis/", (_req, res) => {
+  res.redirect("/tennis");
 });
 
 app.use(express.static(ROOT, {
@@ -198,5 +214,5 @@ if (storageMode() === "file") {
 }
 
 app.listen(PORT, () => {
-  console.log(`Laufrennen Tracker listening on ${PORT} (storage=${storageMode()})`);
+  console.log(`Sport Tracker listening on ${PORT} (storage=${storageMode()})`);
 });

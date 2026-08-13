@@ -1,17 +1,24 @@
-# Laufrennen Tracker
+# Sport Tracker
 
-Mobiles Web-Tool zur Zeitstempelung bei Hobby-Laufrennen.
+Mobiles Web-Tool für **Laufrennen** und **Tennis-Turniere**.
 
-## Funktionen
+## Start
 
-- Rennen erstellen; **alle Rennen** sind auf der Startseite für jeden sichtbar
-- **Lauflisten lokal speichern** (auf dem Gerät) und wieder laden
-- Rennen-Link zum Mitmachen: `/r/<id>`
-- Teilnehmer per **CSV** oder **Excel** importieren
-- Zeitnahme über Startnummern-Kacheln
-- Ranglisten: Gesamt, Geschlecht, Kategorie + Excel-Export
-- Ergebnis-Link für Läufer: `/e/<id>` (nur Ergebnisse)
-- Alte Rennen löschen
+- Portal: `/`
+- Laufrennen: `/laufen`
+- Tennis: `/tennis`
+
+## Laufrennen
+
+- Rennen erstellen, Zeitnahme, Ranglisten, Ergebnis-Links
+- Lauflisten lokal speichern
+
+## Tennis (aktuell)
+
+- Einzel- oder Doppelturnier
+- Excel/CSV-Import (Doppel: Spalte 1 + 2 = Mannschaft)
+- Gruppenanzahl wählen
+- Spielplan: jeder gegen jeden, max. 2 Felder gleichzeitig
 
 ## Lokal starten
 
@@ -20,10 +27,7 @@ npm install
 npm start
 ```
 
-Öffne danach http://localhost:5173
+## Speicherung (Laufrennen)
 
-## Speicherung
-
-Lokal: Datei `data/races.json`.
-
-Auf Render: persistenter Speicher über GitHub Gist (`RACES_GIST_ID` + `GITHUB_TOKEN`), damit Rennen Redeploys überleben.
+Lokal: `data/races.json`  
+Auf Render: GitHub Gist (`RACES_GIST_ID` + `GITHUB_TOKEN`)

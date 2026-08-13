@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b3d2e" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>Laufrennen · Sport Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;700&family=IBM+Plex+Mono:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div>
+          <p class="brand"><a class="brand-link" href="/">Sport Tracker</a> · Laufrennen</p>
+          <p class="subtitle" id="subtitle">Deine Rennen</p>
+        </div>
+        <div class="clock" id="raceClock" hidden>
+          <span class="clock-label">Zeit</span>
+          <span class="clock-value" id="clockValue">00:00.0</span>
+        </div>
+      </header>
+
+      <main>
+        <!-- Home -->
+        <section id="view-home" class="view">
+          <div class="panel">
+            <h1>Rennen</h1>
+            <p class="hint">
+              Neues Rennen anlegen oder ein bestehendes öffnen. Alle Rennen sind
+              für jeden mit dem Link erreichbar – du kannst parallel das nächste
+              starten.
+            </p>
+            <label class="field-label" for="raceNameInput">Name des Rennens</label>
+            <input
+              id="raceNameInput"
+              class="text-input"
+              type="text"
+              maxlength="80"
+              placeholder="z. B. Vereinslauf April"
+              autocomplete="off"
+            />
+            <p class="error" id="homeError" hidden></p>
+            <button type="button" class="btn btn-primary btn-xl" id="btnCreateRace">
+              Neues Rennen erstellen
+            </button>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Meine Lauflisten</h2>
+              <span class="badge" id="savedListCount">0</span>
+            </div>
+            <p class="hint">
+              Gespeichert auf diesem Gerät – Teilnehmerlisten jederzeit wieder
+              verwenden.
+            </p>
+            <div id="savedListHome" class="race-list">
+              <p class="empty-hint">Noch keine Laufliste gespeichert.</p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Alle Rennen</h2>
+              <span class="badge" id="raceListCount">0</span>
+            </div>
+            <div id="raceList" class="race-list">
+              <p class="empty-hint">Noch keine Rennen vorhanden.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Setup -->
+        <section id="view-setup" class="view" hidden>
+          <div class="panel">
+            <button type="button" class="btn btn-ghost btn-inline" id="btnHomeFromSetup">
+              ← Alle Rennen
+            </button>
+            <h1 id="setupTitle">Teilnehmer laden</h1>
+            <div class="share-box share-box-compact">
+              <p class="share-label">Rennen-Link (jeder kann damit einsteigen)</p>
+              <input id="setupRaceLinkInput" class="text-input" type="text" readonly />
+              <button type="button" class="btn btn-ghost" id="btnCopySetupRaceLink">
+                Link kopieren
+              </button>
+              <p class="share-note" id="setupShareNote" hidden>Link kopiert.</p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Gespeicherte Laufliste</h2>
+            </div>
+            <div id="savedListSetup" class="race-list">
+              <p class="empty-hint">Noch keine Laufliste auf diesem Gerät.</p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>Datei importieren</h2>
+            <p class="hint">
+              Excel (.xlsx) oder CSV. Spalten: Startnummer, Name, Geschlecht
+              (M/W), Kategorie.
+            </p>
+
+            <label class="file-drop" for="fileInput">
+              <input
+                id="fileInput"
+                type="file"
+                accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                hidden
+              />
+              <span class="file-drop-title">Datei wählen</span>
+              <span class="file-drop-sub">CSV oder Excel tippen</span>
+            </label>
+
+            <p class="error" id="importError" hidden></p>
+
+            <div class="sample-row">
+              <a href="/beispiel-teilnehmer.csv" download>Beispiel-CSV laden</a>
+            </div>
+          </div>
+
+          <div id="previewBlock" class="panel" hidden>
+            <div class="panel-head">
+              <h2>Vorschau</h2>
+              <span class="badge" id="participantCount">0</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>G</th>
+                    <th>Kategorie</th>
+                  </tr>
+                </thead>
+                <tbody id="previewBody"></tbody>
+              </table>
+            </div>
+            <button type="button" class="btn btn-primary" id="btnReady">
+              Weiter zum Start
+            </button>
+            <button type="button" class="btn btn-ghost" id="btnSaveList">
+              Als Laufliste speichern
+            </button>
+          </div>
+        </section>
+
+        <!-- Ready -->
+        <section id="view-ready" class="view" hidden>
+          <div class="panel">
+            <button type="button" class="btn btn-ghost btn-inline" id="btnHomeFromReady">
+              ← Alle Rennen
+            </button>
+            <h1>Bereit?</h1>
+            <p class="hint">
+              <span id="readyCount">0</span> Teilnehmer geladen. Beim Start
+              läuft die Zeit.
+            </p>
+            <button type="button" class="btn btn-primary btn-xl" id="btnStart">
+              Rennen starten
+            </button>
+            <button type="button" class="btn btn-ghost" id="btnBackToImport">
+              Andere Datei laden
+            </button>
+          </div>
+        </section>
+
+        <!-- Running -->
+        <section id="view-running" class="view" hidden>
+          <div class="stats-bar">
+            <div>
+              <span class="stat-label">Im Ziel</span>
+              <span class="stat-value" id="finishedCount">0</span>
+            </div>
+            <div>
+              <span class="stat-label">Noch unterwegs</span>
+              <span class="stat-value" id="remainingCount">0</span>
+            </div>
+          </div>
+
+          <div class="tiles" id="tiles"></div>
+
+          <div class="bottom-actions">
+            <button type="button" class="btn btn-danger" id="btnEndRace">
+              Rennen beenden
+            </button>
+          </div>
+        </section>
+
+        <!-- Finished -->
+        <section id="view-finished" class="view" hidden>
+          <div class="panel">
+            <button type="button" class="btn btn-ghost btn-inline" id="btnHomeFromFinished">
+              ← Alle Rennen
+            </button>
+            <h1 id="finishedTitle">Rangliste</h1>
+            <p class="hint" id="finishedSummary"></p>
+
+            <div class="share-box">
+              <p class="share-label">Rennen-Link (zum Mitmachen / Zeitnehmen)</p>
+              <input id="raceLinkInput" class="text-input" type="text" readonly />
+              <button type="button" class="btn btn-primary" id="btnCopyRaceLink">
+                Rennen-Link kopieren
+              </button>
+              <p class="share-label share-label-spaced">Ergebnis-Link für Läufer</p>
+              <input id="shareLinkInput" class="text-input" type="text" readonly />
+              <button type="button" class="btn btn-ghost" id="btnCopyShare">
+                Ergebnis-Link kopieren
+              </button>
+              <p class="share-note" id="shareNote" hidden>Link kopiert.</p>
+            </div>
+
+            <div class="tabs" role="tablist" aria-label="Ranglisten">
+              <button
+                type="button"
+                class="tab is-active"
+                data-ranking="category"
+                role="tab"
+                aria-selected="true"
+              >
+                Kategorie
+              </button>
+              <button
+                type="button"
+                class="tab"
+                data-ranking="overall"
+                role="tab"
+                aria-selected="false"
+              >
+                Gesamt
+              </button>
+              <button
+                type="button"
+                class="tab"
+                data-ranking="gender"
+                role="tab"
+                aria-selected="false"
+              >
+                Geschlecht
+              </button>
+            </div>
+
+            <div id="rankingContent" class="ranking-content"></div>
+
+            <button type="button" class="btn btn-primary" id="btnExport">
+              Excel exportieren
+            </button>
+            <button type="button" class="btn btn-ghost" id="btnNewRace">
+              Neues Rennen
+            </button>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <p>Powered by Fabian Gasser</p>
+      </footer>
+    </div>
+
+    <div class="modal" id="confirmModal" hidden>
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <h2>Rennen wirklich beenden?</h2>
+        <p>
+          Alle Teilnehmer ohne Zieleinlauf werden als
+          <strong>nicht angetreten</strong> gewertet.
+        </p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close>
+            Abbrechen
+          </button>
+          <button type="button" class="btn btn-danger" id="btnConfirmEnd">
+            Ja, beenden
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="deleteModal" hidden>
+      <div class="modal-backdrop" data-close-delete></div>
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <h2>Rennen löschen?</h2>
+        <p id="deleteModalText">
+          Das Rennen und alle Ergebnisse werden unwiderruflich gelöscht.
+        </p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close-delete>
+            Abbrechen
+          </button>
+          <button type="button" class="btn btn-danger" id="btnConfirmDelete">
+            Ja, löschen
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="saveListModal" hidden>
+      <div class="modal-backdrop" data-close-save-list></div>
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <h2>Laufliste speichern</h2>
+        <p class="hint">Wird nur auf diesem Gerät gespeichert.</p>
+        <label class="field-label" for="saveListNameInput">Name der Liste</label>
+        <input
+          id="saveListNameInput"
+          class="text-input"
+          type="text"
+          maxlength="80"
+          placeholder="z. B. Vereinslauf Starterliste"
+          autocomplete="off"
+        />
+        <p class="error" id="saveListError" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close-save-list>
+            Abbrechen
+          </button>
+          <button type="button" class="btn btn-primary" id="btnConfirmSaveList">
+            Speichern
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="deleteListModal" hidden>
+      <div class="modal-backdrop" data-close-delete-list></div>
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <h2>Laufliste löschen?</h2>
+        <p id="deleteListModalText"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close-delete-list>
+            Abbrechen
+          </button>
+          <button type="button" class="btn btn-danger" id="btnConfirmDeleteList">
+            Ja, löschen
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="/ranking.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

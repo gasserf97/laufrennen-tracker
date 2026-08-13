@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b3d2e" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>Tennis-Turnier · Sport Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;700&family=IBM+Plex+Mono:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div>
+          <p class="brand">
+            <a class="brand-link" href="/">Sport Tracker</a> · Tennis
+          </p>
+          <p class="subtitle" id="subtitle">Turnierart wählen</p>
+        </div>
+      </header>
+
+      <main>
+        <!-- Mode -->
+        <section id="view-mode" class="view">
+          <div class="panel">
+            <h1>Tennis-Turnier</h1>
+            <p class="hint">
+              Einzel oder Doppel. Danach Teilnehmer importieren, Gruppen
+              festlegen und Spielplan erstellen.
+            </p>
+            <button type="button" class="btn btn-primary btn-xl" id="btnSingles">
+              Einzelturnier
+            </button>
+            <button type="button" class="btn btn-ghost btn-xl" id="btnDoubles">
+              Doppelturnier
+            </button>
+            <a class="btn btn-ghost" href="/">← Zurück zur Übersicht</a>
+          </div>
+        </section>
+
+        <!-- Import -->
+        <section id="view-import" class="view" hidden>
+          <div class="panel">
+            <button type="button" class="btn btn-ghost btn-inline" id="btnBackMode">
+              ← Turnierart
+            </button>
+            <h1 id="importTitle">Teilnehmer laden</h1>
+            <p class="hint" id="importHint"></p>
+
+            <label class="file-drop" for="tennisFileInput">
+              <input
+                id="tennisFileInput"
+                type="file"
+                accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                hidden
+              />
+              <span class="file-drop-title">Datei wählen</span>
+              <span class="file-drop-sub">CSV oder Excel tippen</span>
+            </label>
+
+            <p class="error" id="tennisImportError" hidden></p>
+
+            <div class="sample-row">
+              <a id="sampleLink" href="/beispiel-tennis-einzel.csv" download
+                >Beispiel-CSV laden</a
+              >
+            </div>
+          </div>
+
+          <div id="tennisPreviewBlock" class="panel" hidden>
+            <div class="panel-head">
+              <h2>Vorschau</h2>
+              <span class="badge" id="teamCount">0</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr id="previewHead"></tr>
+                </thead>
+                <tbody id="tennisPreviewBody"></tbody>
+              </table>
+            </div>
+            <button type="button" class="btn btn-primary" id="btnToGroups">
+              Weiter zu Gruppen
+            </button>
+          </div>
+        </section>
+
+        <!-- Groups -->
+        <section id="view-groups" class="view" hidden>
+          <div class="panel">
+            <button type="button" class="btn btn-ghost btn-inline" id="btnBackImport">
+              ← Teilnehmer
+            </button>
+            <h1>Gruppen einteilen</h1>
+            <p class="hint">
+              <span id="groupsTeamCount">0</span> Mannschaften / Spieler werden
+              auf Gruppen aufgeteilt. Danach spielt jeder gegen jeden – auf 2
+              Feldern.
+            </p>
+
+            <label class="field-label" for="groupCountInput"
+              >Anzahl Gruppen</label
+            >
+            <input
+              id="groupCountInput"
+              class="text-input"
+              type="number"
+              min="1"
+              step="1"
+              value="2"
+            />
+            <p class="error" id="groupError" hidden></p>
+
+            <div id="groupPreview" class="group-preview"></div>
+
+            <button type="button" class="btn btn-primary btn-xl" id="btnBuildSchedule">
+              Spielplan erstellen
+            </button>
+          </div>
+        </section>
+
+        <!-- Schedule -->
+        <section id="view-schedule" class="view" hidden>
+          <div class="panel">
+            <button type="button" class="btn btn-ghost btn-inline" id="btnBackGroups">
+              ← Gruppen
+            </button>
+            <h1>Spielplan</h1>
+            <p class="hint" id="scheduleSummary"></p>
+            <div id="scheduleContent" class="schedule-content"></div>
+            <button type="button" class="btn btn-ghost" id="btnNewTennis">
+              Neues Turnier
+            </button>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <p>Powered by Fabian Gasser</p>
+      </footer>
+    </div>
+
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="/tennis.js"></script>
+  </body>
+</html>

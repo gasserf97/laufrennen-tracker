@@ -337,8 +337,8 @@
   }
 
   function goHomeUrl() {
-    if (location.pathname !== "/" || location.search || location.hash) {
-      history.pushState({}, "", "/");
+    if (location.pathname !== "/laufen" || location.search || location.hash) {
+      history.pushState({}, "", "/laufen");
     }
   }
 
