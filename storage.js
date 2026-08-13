@@ -7,7 +7,18 @@ const GIST_ID = process.env.RACES_GIST_ID || "";
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
 
 function emptyDb() {
-  return { races: {} };
+  return { races: {}, tournaments: {} };
+}
+
+function normalizeDb(parsed) {
+  if (!parsed || typeof parsed !== "object") return emptyDb();
+  return {
+    races: parsed.races && typeof parsed.races === "object" ? parsed.races : {},
+    tournaments:
+      parsed.tournaments && typeof parsed.tournaments === "object"
+        ? parsed.tournaments
+        : {},
+  };
 }
 
 function useGist() {
@@ -24,7 +35,7 @@ function ensureFileDb() {
 function readFileDb() {
   ensureFileDb();
   try {
-    return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
+    return normalizeDb(JSON.parse(fs.readFileSync(DB_FILE, "utf8")));
   } catch {
     return emptyDb();
   }
@@ -33,7 +44,7 @@ function readFileDb() {
 function writeFileDb(db) {
   ensureFileDb();
   const tmp = `${DB_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify(normalizeDb(db), null, 2));
   fs.renameSync(tmp, DB_FILE);
 }
 
@@ -70,12 +81,7 @@ async function readGistDb() {
   const file = gist.files && (gist.files["races.json"] || Object.values(gist.files)[0]);
   if (!file || !file.content) return emptyDb();
   try {
-    const parsed = JSON.parse(file.content);
-    if (!parsed || typeof parsed !== "object") return emptyDb();
-    if (!parsed.races || typeof parsed.races !== "object") {
-      return { races: {} };
-    }
-    return parsed;
+    return normalizeDb(JSON.parse(file.content));
   } catch {
     return emptyDb();
   }
@@ -85,7 +91,7 @@ async function writeGistDb(db) {
   await gistRequest("PATCH", {
     files: {
       "races.json": {
-        content: JSON.stringify(db, null, 2),
+        content: JSON.stringify(normalizeDb(db), null, 2),
       },
     },
   });

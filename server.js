@@ -163,12 +163,80 @@ app.delete(
   })
 );
 
+app.post(
+  "/api/tournaments",
+  asyncHandler(async (req, res) => {
+    const body = req.body || {};
+    const now = new Date().toISOString();
+    const tournament = {
+      id: newId(),
+      createdAt: now,
+      updatedAt: now,
+      phase: body.phase || "groups",
+      mode: body.mode || "singles",
+      teams: Array.isArray(body.teams) ? body.teams : [],
+      groupCount: body.groupCount || 1,
+      groups: Array.isArray(body.groups) ? body.groups : [],
+      schedule: Array.isArray(body.schedule) ? body.schedule : [],
+      matches: Array.isArray(body.matches) ? body.matches : [],
+      koSize: body.koSize || null,
+      koRounds: Array.isArray(body.koRounds) ? body.koRounds : [],
+    };
+
+    const db = await readDb();
+    db.tournaments = db.tournaments || {};
+    db.tournaments[tournament.id] = tournament;
+    await writeDb(db);
+    res.status(201).json(tournament);
+  })
+);
+
+app.get(
+  "/api/tournaments/:id",
+  asyncHandler(async (req, res) => {
+    const db = await readDb();
+    const tournament = db.tournaments?.[req.params.id];
+    if (!tournament) {
+      return res.status(404).json({ error: "Turnier nicht gefunden." });
+    }
+    res.json(tournament);
+  })
+);
+
+app.put(
+  "/api/tournaments/:id",
+  asyncHandler(async (req, res) => {
+    const db = await readDb();
+    const existing = db.tournaments?.[req.params.id];
+    if (!existing) {
+      return res.status(404).json({ error: "Turnier nicht gefunden." });
+    }
+
+    const body = req.body || {};
+    const next = {
+      ...existing,
+      ...body,
+      id: existing.id,
+      createdAt: existing.createdAt,
+      updatedAt: new Date().toISOString(),
+    };
+
+    db.tournaments[next.id] = next;
+    await writeDb(db);
+    res.json(next);
+  })
+);
+
 app.get("/e/:id", (_req, res) => {
   res.sendFile(path.join(ROOT, "ergebnis.html"));
 });
 
 app.get("/r/:id", (_req, res) => {
   res.sendFile(path.join(ROOT, "laufen.html"));
+});
+
+app.get("/t/:id", (_req, res) => {
+  res.sendFile(path.join(ROOT, "tennis-display.html"));
 });
 
 app.get("/laufen", (_req, res) => {

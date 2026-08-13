@@ -137,6 +137,16 @@
               Ergebnis pro Spiel setzen (0–13). Normal: Sieger = 3 Punkte.
               Bei 13:11: Sieger = 2, Verlierer = 1.
             </p>
+
+            <div class="share-box share-box-compact" id="displayShareBox" hidden>
+              <p class="share-label">Öffentliche Anzeige (Bildschirm)</p>
+              <input id="displayLinkInput" class="text-input" type="text" readonly />
+              <button type="button" class="btn btn-primary" id="btnCopyDisplay">
+                Anzeige-Link kopieren
+              </button>
+              <p class="share-note" id="displayShareNote" hidden>Link kopiert.</p>
+            </div>
+
             <div id="standingsContent" class="standings-content"></div>
             <div id="scheduleContent" class="schedule-content"></div>
 
@@ -172,6 +182,16 @@
             </button>
             <h1>K.O.-Phase</h1>
             <p class="hint" id="koSummary"></p>
+
+            <div class="share-box share-box-compact" id="displayShareBoxKo" hidden>
+              <p class="share-label">Öffentliche Anzeige (Bildschirm)</p>
+              <input id="displayLinkInputKo" class="text-input" type="text" readonly />
+              <button type="button" class="btn btn-primary" id="btnCopyDisplayKo">
+                Anzeige-Link kopieren
+              </button>
+              <p class="share-note" id="displayShareNoteKo" hidden>Link kopiert.</p>
+            </div>
+
             <div id="koContent" class="schedule-content"></div>
             <button type="button" class="btn btn-ghost" id="btnNewTennisFromKo">
               Neues Turnier

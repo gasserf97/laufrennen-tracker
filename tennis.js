@@ -3,6 +3,8 @@
   const SCORE_MAX = 13;
 
   const state = {
+    tournamentId: null,
+    phase: "setup", // setup | groups | ko
     mode: null,
     teams: [],
     groupCount: 2,
@@ -11,6 +13,7 @@
     matches: [],
     koSize: 8,
     koRounds: [],
+    saveTimer: null,
   };
 
   const els = {
@@ -48,6 +51,14 @@
     koError: document.getElementById("koError"),
     koSummary: document.getElementById("koSummary"),
     koContent: document.getElementById("koContent"),
+    displayShareBox: document.getElementById("displayShareBox"),
+    displayLinkInput: document.getElementById("displayLinkInput"),
+    btnCopyDisplay: document.getElementById("btnCopyDisplay"),
+    displayShareNote: document.getElementById("displayShareNote"),
+    displayShareBoxKo: document.getElementById("displayShareBoxKo"),
+    displayLinkInputKo: document.getElementById("displayLinkInputKo"),
+    btnCopyDisplayKo: document.getElementById("btnCopyDisplayKo"),
+    displayShareNoteKo: document.getElementById("displayShareNoteKo"),
     views: {
       mode: document.getElementById("view-mode"),
       import: document.getElementById("view-import"),
@@ -92,6 +103,83 @@
   function showKoError(message) {
     els.koError.hidden = !message;
     els.koError.textContent = message || "";
+  }
+
+  function displayUrl() {
+    if (!state.tournamentId) return "";
+    return `${location.origin}/t/${state.tournamentId}`;
+  }
+
+  function fillDisplayLinks() {
+    const url = displayUrl();
+    if (els.displayLinkInput) els.displayLinkInput.value = url;
+    if (els.displayLinkInputKo) els.displayLinkInputKo.value = url;
+    if (els.displayShareBox) els.displayShareBox.hidden = !url;
+    if (els.displayShareBoxKo) els.displayShareBoxKo.hidden = !url;
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const probe = document.createElement("textarea");
+      probe.value = text;
+      document.body.appendChild(probe);
+      probe.select();
+      const ok = document.execCommand("copy");
+      probe.remove();
+      return ok;
+    }
+  }
+
+  function payloadFromState() {
+    return {
+      phase: state.phase === "ko" ? "ko" : "groups",
+      mode: state.mode,
+      teams: state.teams,
+      groupCount: state.groupCount,
+      groups: state.groups,
+      schedule: state.schedule,
+      matches: state.matches,
+      koSize: state.koSize,
+      koRounds: state.koRounds,
+    };
+  }
+
+  async function ensureTournamentSaved() {
+    const body = payloadFromState();
+    if (!state.tournamentId) {
+      const res = await fetch("/api/tournaments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Turnier speichern fehlgeschlagen.");
+      state.tournamentId = data.id;
+      fillDisplayLinks();
+      return data;
+    }
+
+    const res = await fetch(`/api/tournaments/${state.tournamentId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Turnier speichern fehlgeschlagen.");
+    fillDisplayLinks();
+    return data;
+  }
+
+  function schedulePersist() {
+    clearTimeout(state.saveTimer);
+    state.saveTimer = setTimeout(() => {
+      ensureTournamentSaved().catch((error) => {
+        console.error(error);
+      });
+    }, 400);
   }
 
   function teamLabel(team) {
@@ -199,6 +287,8 @@
 
   function setupMode(mode) {
     state.mode = mode;
+    state.tournamentId = null;
+    state.phase = "setup";
     state.teams = [];
     state.groups = [];
     state.schedule = [];
@@ -206,6 +296,7 @@
     state.koRounds = [];
     els.fileInput.value = "";
     els.previewBlock.hidden = true;
+    fillDisplayLinks();
     showImportError("");
 
     if (mode === "doubles") {
@@ -515,6 +606,7 @@
 
     renderStandings();
     updateKoSetup();
+    fillDisplayLinks();
   }
 
   function updateKoSetup() {
@@ -535,12 +627,13 @@
     if (firstOk) els.koSizeSelect.value = firstOk.value;
   }
 
-  function buildSchedule() {
+  async function buildSchedule() {
     if (!state.groups.length) {
       renderGroupPreview();
       if (!state.groups.length) return;
     }
 
+    state.phase = "groups";
     state.schedule = state.groups.map((group) => ({
       group,
       slots: assignCourts(roundRobinRounds(group.teams), group.id),
@@ -552,6 +645,11 @@
     showKoError("");
     renderSchedule();
     setView("schedule");
+    try {
+      await ensureTournamentSaved();
+    } catch (error) {
+      showGroupError(error.message);
+    }
   }
 
   function onScoreChange(matchId, side, value) {
@@ -561,7 +659,6 @@
     if (side === "home") match.homeScore = num;
     else match.awayScore = num;
 
-    // Keep schedule object in sync
     state.schedule.forEach((block) => {
       block.slots.forEach((slot) => {
         slot.matches.forEach((m) => {
@@ -574,6 +671,7 @@
     });
 
     renderSchedule();
+    schedulePersist();
   }
 
   function koRoundName(size) {
@@ -660,8 +758,10 @@
     }
 
     state.koRounds = rounds;
+    state.phase = "ko";
     renderKo();
     setView("ko");
+    ensureTournamentSaved().catch((error) => showKoError(error.message));
   }
 
   function getKoMatch(id) {
@@ -713,6 +813,7 @@
   function renderKo() {
     propagateKoWinners();
     els.koSummary.textContent = `Top ${state.koSize} nach Gruppentabelle · Ergebnisse wie in der Gruppenphase`;
+    fillDisplayLinks();
 
     els.koContent.innerHTML = state.koRounds
       .map((round) => {
@@ -778,9 +879,12 @@
     if (side === "home") match.homeScore = num;
     else match.awayScore = num;
     renderKo();
+    schedulePersist();
   }
 
   function resetAll() {
+    state.tournamentId = null;
+    state.phase = "setup";
     state.mode = null;
     state.teams = [];
     state.groupCount = 2;
@@ -792,6 +896,7 @@
     els.previewBlock.hidden = true;
     els.groupCountInput.value = "2";
     els.koSetupBox.hidden = true;
+    fillDisplayLinks();
     showImportError("");
     showGroupError("");
     showKoError("");
@@ -839,8 +944,28 @@
   });
 
   els.groupCountInput.addEventListener("input", () => renderGroupPreview());
-  els.btnBuildSchedule.addEventListener("click", () => buildSchedule());
+  els.btnBuildSchedule.addEventListener("click", () => {
+    buildSchedule();
+  });
   els.btnBuildKo.addEventListener("click", () => buildKoBracket());
+
+  async function flashCopied(noteEl) {
+    if (!noteEl) return;
+    noteEl.hidden = false;
+    window.setTimeout(() => {
+      noteEl.hidden = true;
+    }, 1800);
+  }
+
+  els.btnCopyDisplay?.addEventListener("click", async () => {
+    const ok = await copyText(els.displayLinkInput.value);
+    if (ok) flashCopied(els.displayShareNote);
+  });
+
+  els.btnCopyDisplayKo?.addEventListener("click", async () => {
+    const ok = await copyText(els.displayLinkInputKo.value);
+    if (ok) flashCopied(els.displayShareNoteKo);
+  });
 
   els.scheduleContent.addEventListener("change", (event) => {
     const select = event.target.closest(".score-select[data-match]");
