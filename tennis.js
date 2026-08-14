@@ -1,6 +1,6 @@
 (() => {
   const COURTS = 2;
-  const SCORE_MAX = 13;
+  const SCORE_MAX = 12;
 
   const state = {
     tournamentId: null,
@@ -621,7 +621,7 @@
     if (homeScore === awayScore) return null;
     const hi = Math.max(homeScore, awayScore);
     const lo = Math.min(homeScore, awayScore);
-    const isSpecial = hi === 13 && lo === 11;
+    const isSpecial = hi === 12 && lo === 11;
     if (homeScore > awayScore) {
       return isSpecial ? { homePts: 2, awayPts: 1 } : { homePts: 3, awayPts: 0 };
     }
